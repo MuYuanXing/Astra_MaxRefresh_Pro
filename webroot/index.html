@@ -2,30 +2,37 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>星驰引擎</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Astra_MaxRefresh_Pro</title>
+    <link rel="stylesheet" href="internal/insets.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="ui-container">
-	        <div class="ui-content hidden" id="page-apps">
-	            <div class="glass-card">
-	                <div class="card-header">
-	                    <span class="card-title">应用配置说明</span>
-	                </div>
-	                <div class="scan-desc">
-	                    <p>先去「设置」页：全量扫描 → 档位属性设置 → 保存</p>
-	                    <p>再在本页点「添加」：填包名 + 刷新率ID</p>
-	                    <p>打开应用会自动切换到对应档位</p>
-	                </div>
-	            </div>
+    <div class="aurora" aria-hidden="true">
+        <div class="flow f1"></div>
+        <div class="flow f2"></div>
+        <div class="orb orb-a"></div>
+        <div class="orb orb-b"></div>
+        <div class="orb orb-c"></div>
+    </div>
 
-            <div class="glass-card">
+    <div class="star-layer sl-1" aria-hidden="true"></div>
+    <div class="star-layer sl-2" aria-hidden="true"></div>
+
+    <div class="ui-container">
+        <!-- ============ 应用页 ============ -->
+        <div class="ui-content hidden" id="page-apps">
+            <header class="page-header">
+                <h1 class="page-title">应用</h1>
+                <p class="page-subtitle">按应用自动切换刷新率档位</p>
+            </header>
+
+            <div class="glass-card anim-in">
                 <div class="card-header">
-                    <span class="card-title">应用切换设置</span>
-                    <span class="card-action" id="save-app-switch">保存</span>
+                    <span class="card-title">切换设置</span>
+                    <button class="card-action" id="save-app-switch">保存</button>
                 </div>
-                <div class="device-info">
+                <div class="row-list">
                     <div class="info-row">
                         <span class="info-label">按应用自动切换</span>
                         <label class="ui-switch">
@@ -34,21 +41,24 @@
                         </label>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">轮询间隔(秒)</span>
+                        <span class="info-label">轮询间隔</span>
                         <div class="ui-stepper">
-                            <span class="step-btn" id="app-switch-interval-dec">−</span>
-                            <input type="number" class="mini-input stepper-input" id="app-switch-interval" min="1" max="10" step="1" readonly>
-                            <span class="step-btn" id="app-switch-interval-inc">＋</span>
+                            <button class="step-btn" id="app-switch-interval-dec" aria-label="减少">−</button>
+                            <input type="number" class="stepper-input" id="app-switch-interval" min="1" max="10" step="1" readonly aria-label="轮询间隔秒数">
+                            <button class="step-btn" id="app-switch-interval-inc" aria-label="增加">＋</button>
                         </div>
                     </div>
                 </div>
                 <div class="info-note neutral" id="app-switch-note">建议 1~3 秒；间隔越小切换越及时，但更耗电</div>
             </div>
 
-            <div class="glass-card app-list-card">
+            <div class="glass-card app-list-card anim-in">
                 <div class="card-header">
                     <span class="card-title">应用列表</span>
-                    <span class="card-action" id="add-app-config">添加</span>
+                    <button class="card-action accent" id="add-app-config">添加</button>
+                </div>
+                <div class="scan-desc">
+                    <p>填包名 + 刷新率ID，打开应用会自动切换到对应档位</p>
                 </div>
                 <div class="app-config-scroll">
                     <div class="app-config-list" id="app-config-list"></div>
@@ -56,45 +66,24 @@
             </div>
         </div>
 
+        <!-- ============ 主页 ============ -->
         <div class="ui-content" id="page-home">
-            <div class="page-title">星驰引擎_极速高刷Pro</div>
-            
-            <div class="glass-card">
-                <div class="card-header">
-                    <span class="card-title">设备信息</span>
-                </div>
-                <div class="device-info">
-                    <div class="info-row">
-                        <span class="info-label">机型型号</span>
-                        <span class="info-value" id="device-model">加载中...</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">机型名称</span>
-                        <span class="info-value" id="market-name">加载中...</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">安卓版本</span>
-                        <span class="info-value" id="android-ver">加载中...</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">内核版本</span>
-                        <span class="info-value" id="kernel-ver">加载中...</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">当前电量</span>
-                        <span class="info-value" id="battery-level">加载中...</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">电池温度</span>
-                        <span class="info-value" id="battery-temp">加载中...</span>
-                    </div>
-                </div>
+            <header class="page-header">
+                <h1 class="page-title">Astra_MaxRefresh_Pro</h1>
+                <p class="page-subtitle">全局高刷控制</p>
+            </header>
+
+            <div class="glass-card hero-card anim-in">
+                <div class="hero-label">当前全局档位</div>
+                <div class="hero-value" id="hero-value"><span id="hero-fps">--</span><span class="hero-unit" id="hero-unit"></span></div>
+                <div class="hero-meta" id="hero-meta">尚未设置</div>
+                <div class="hero-chip" id="hero-ltpo">LTPO 检测中</div>
             </div>
 
-            <div class="glass-card">
+            <div class="glass-card anim-in">
                 <div class="card-header">
                     <span class="card-title">全局刷新率</span>
-                    <span class="card-action" id="save-global-rate">保存</span>
+                    <button class="card-action accent" id="save-global-rate">保存</button>
                 </div>
                 <div class="rate-selector" id="rate-selector"></div>
                 <div class="info-note" id="rate-note" style="display:none;">请先在设置页扫描并配置档位</div>
@@ -102,11 +91,49 @@
             </div>
         </div>
 
+        <!-- ============ 设置页 ============ -->
         <div class="ui-content hidden" id="page-settings">
-            <div class="glass-card">
+            <header class="page-header">
+                <h1 class="page-title">设置</h1>
+                <p class="page-subtitle">扫描并配置刷新率档位属性</p>
+            </header>
+
+            <div class="glass-card anim-in">
+                <div class="card-header">
+                    <span class="card-title">外观</span>
+                </div>
+                <div class="theme-seg" id="theme-seg">
+                    <button class="theme-seg-btn" data-mode="light">
+                        <svg viewBox="0 0 24 24"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0-15v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4m0-14.2-1.4 1.4M6.3 17.7l-1.4 1.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        浅色
+                    </button>
+                    <button class="theme-seg-btn" data-mode="dark">
+                        <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        深色
+                    </button>
+                    <button class="theme-seg-btn" data-mode="auto">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18V3z" fill="currentColor"/></svg>
+                        跟随系统
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-card anim-in">
+                <div class="card-header">
+                    <span class="card-title">动画效果</span>
+                </div>
+                <div class="theme-seg" id="motion-seg">
+                    <button class="theme-seg-btn motion-seg-btn" data-level="high">高</button>
+                    <button class="theme-seg-btn motion-seg-btn" data-level="medium">中</button>
+                    <button class="theme-seg-btn motion-seg-btn" data-level="low">低</button>
+                </div>
+                <div class="info-note neutral">低端设备建议选择「低」，关闭背景动画并降低模糊</div>
+            </div>
+
+            <div class="glass-card anim-in">
                 <div class="card-header">
                     <span class="card-title">档位扫描</span>
-                    <span class="card-action scan-btn" id="scan-rates">全量扫描</span>
+                    <button class="card-action danger" id="scan-rates">全量扫描</button>
                 </div>
                 <div class="scan-desc">
                     <p>首次使用必须先点击「全量扫描」</p>
@@ -114,31 +141,33 @@
                 </div>
             </div>
 
-            <div class="glass-card">
+            <div class="glass-card anim-in">
                 <div class="card-header">
                     <span class="card-title">档位属性设置</span>
-                    <span class="card-action" id="save-rates">保存</span>
+                    <button class="card-action accent" id="save-rates">保存</button>
                 </div>
-                <div class="settings-desc">
-                    <p>不会配置？照下面做即可：</p>
-                    <p>① 先点上方<span class="highlight">「全量扫描」</span></p>
-                    <p>② 在下方列表里：将非原生刷新率档位选为<span class="highlight">「超频」</span></p>
-                    <p>③ 每个分辨率至少选 1 个<span class="highlight">「原生基准」</span>（一般选该分辨率下的原生最高档）</p>
-                    <p>④ 所有<span class="highlight">「超频」</span>都要填<span class="highlight">切换顺序</span>：从 1 开始，数字越小越先切；同一分辨率各填各的 1/2/3…</p>
-                    <p>⑤ 点上方<span class="highlight">「保存」</span>完成</p>
-                    <p>例：同一分辨率 120/144/165 → 顺序填 1/2/3</p>
-                </div>
+                <details class="guide">
+                    <summary>不会配置？点开照做</summary>
+                    <div class="settings-desc">
+                        <p>① 先点上方<span class="highlight">「全量扫描」</span></p>
+                        <p>② 在下方列表里：将非原生刷新率档位选为<span class="highlight">「超频」</span></p>
+                        <p>③ 每个分辨率至少选 1 个<span class="highlight">「原生基准」</span>（一般选该分辨率下的原生最高档）</p>
+                        <p>④ 所有<span class="highlight">「超频」</span>都要填<span class="highlight">切换顺序</span>：从 1 开始，数字越小越先切；同一分辨率各填各的 1/2/3…</p>
+                        <p>⑤ 点上方<span class="highlight">「保存」</span>完成</p>
+                        <p>例：同一分辨率 120/144/165 → 顺序填 1/2/3</p>
+                    </div>
+                </details>
                 <div class="rate-settings-list" id="rate-settings-list"></div>
             </div>
 
-	            <div class="glass-card">
-	                <div class="card-header">
-	                    <span class="card-title">当前配置</span>
-	                </div>
-	                <div class="current-config">
+            <div class="glass-card anim-in">
+                <div class="card-header">
+                    <span class="card-title">当前配置</span>
+                </div>
+                <div class="row-list">
                     <div class="info-row">
                         <span class="info-label">LTPO模式</span>
-                        <span class="info-value" id="current-ltpo-mode">加载中...</span>
+                        <span class="info-value" id="current-ltpo-mode">加载中</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">全局档位ID</span>
@@ -150,118 +179,55 @@
                     </div>
                 </div>
             </div>
-
         </div>
 
-        <div class="ui-content hidden" id="page-about">
-            <div class="glass-card">
-                <div class="card-header">
-                    <span class="card-title">作者信息</span>
-                </div>
-                <div class="about-links">
-                    <div class="about-item" id="coolapk-link">
-                        <div class="about-icon">
-                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                        </div>
-                        <div class="about-content">
-                            <div class="about-title">酷安关注</div>
-                            <div class="about-subtitle">穆远星</div>
-                        </div>
-                    </div>
-                    <div class="about-item" id="qq-link">
-                        <div class="about-icon">
-                            <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                        </div>
-                        <div class="about-content">
-                            <div class="about-title">QQ群</div>
-                            <div class="about-subtitle">反馈请进群，酷安不接受反馈</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <div class="card-header">
-                    <span class="card-title">支持作者</span>
-                </div>
-                <div class="about-links">
-                    <div class="about-item" id="donate-wx">
-                        <div class="about-icon wxpay">
-                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
-                        </div>
-                        <div class="about-content">
-                            <div class="about-title">微信支付</div>
-                            <div class="about-subtitle">感谢您的支持</div>
-                        </div>
-                    </div>
-                    <div class="about-item" id="donate-ali">
-                        <div class="about-icon alipay">
-                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 4h2v4h4v2h-4v4h-2v-4H7v-2h4z"/></svg>
-                        </div>
-                        <div class="about-content">
-                            <div class="about-title">支付宝</div>
-                            <div class="about-subtitle">感谢您的支持</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="ui-tabbar">
-            <div class="tab-item" data-page="apps">
+        <!-- ============ 悬浮玻璃标签栏 ============ -->
+        <nav class="ui-tabbar">
+            <div class="tab-item" data-page="apps" role="tab" aria-label="应用">
                 <svg class="tab-icon" viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
                 <span class="tab-label">应用</span>
             </div>
-            <div class="tab-item active" data-page="home">
+            <div class="tab-item active" data-page="home" role="tab" aria-label="主页">
                 <svg class="tab-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
                 <span class="tab-label">主页</span>
             </div>
-            <div class="tab-item" data-page="settings">
-                <svg class="tab-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            <div class="tab-item" data-page="settings" role="tab" aria-label="设置">
+                <svg class="tab-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
                 <span class="tab-label">设置</span>
             </div>
-            <div class="tab-item" data-page="about">
-                <svg class="tab-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                <span class="tab-label">关于</span>
-            </div>
-        </div>
+        </nav>
     </div>
 
-    <div class="ui-modal" id="app-input-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <span class="modal-cancel" id="input-cancel">取消</span>
-                <span class="modal-title">添加应用配置</span>
-                <span class="modal-done" id="input-done">完成</span>
-            </div>
+    <!-- ============ 添加应用 · 底部弹层 ============ -->
+    <div class="sheet-backdrop" id="app-input-modal">
+        <div class="sheet-panel">
+            <div class="sheet-grabber"></div>
+            <div class="sheet-title">添加应用配置</div>
             <div class="input-group">
-                <input type="text" class="ui-input" id="app-package" placeholder="输入包名 (如: com.tencent.tmgp.sgame)">
-                <input type="number" class="ui-input" id="app-rate-id" placeholder="输入刷新率ID (如: 4)">
+                <input type="text" class="ui-input" id="app-package" placeholder="包名 (如: com.tencent.tmgp.sgame)" autocomplete="off">
+                <input type="number" class="ui-input" id="app-rate-id" placeholder="刷新率ID (如: 4)" inputmode="numeric">
+            </div>
+            <div class="sheet-actions">
+                <button class="sheet-btn ghost" id="input-cancel">取消</button>
+                <button class="sheet-btn primary" id="input-done">完成</button>
             </div>
         </div>
     </div>
 
-    <div class="ui-modal" id="confirm-modal">
-        <div class="modal-content">
-            <div class="modal-header" style="justify-content:center; border-bottom:0;">
-                <span class="modal-title" id="confirm-title">确认</span>
+    <!-- ============ 确认弹窗 ============ -->
+    <div class="alert-backdrop" id="confirm-modal">
+        <div class="alert-panel">
+            <div class="alert-title" id="confirm-title">确认</div>
+            <div class="alert-message" id="confirm-message"></div>
+            <div class="alert-actions">
+                <button class="alert-btn" id="confirm-cancel">取消</button>
+                <button class="alert-btn danger" id="confirm-ok">继续</button>
             </div>
-            <div class="modal-text-content" id="confirm-message"></div>
-            <div class="modal-footer">
-                <div class="modal-btn cancel" id="confirm-cancel">取消</div>
-                <div class="modal-btn danger" id="confirm-ok">继续</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-backdrop hidden" id="qr-modal">
-        <div class="modal-panel">
-            <img id="qr-image" src="" class="qr-big">
         </div>
     </div>
 
     <div class="ui-toast" id="toast"></div>
-    
+
     <script src="script.js"></script>
 </body>
 </html>

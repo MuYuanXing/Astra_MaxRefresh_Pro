@@ -14,7 +14,7 @@ set_perm "$MODPATH/uninstall.sh" 0 0 0755
 mod_name=$(grep -E '^name=' "$MODPATH/module.prop" | cut -d'=' -f2-)
 mod_ver=$(grep -E '^version=' "$MODPATH/module.prop" | cut -d'=' -f2-)
 
-old_moddir="/data/adb/modules/Yuanxing_Stellar_MaxRefresh_Pro"
+old_moddir="/data/adb/modules/Astra_MaxRefresh_Pro"
 if [ -f "$old_moddir/module.prop" ]; then
     old_vc=$(grep -E '^versionCode=' "$old_moddir/module.prop" | cut -d'=' -f2-)
     old_ver=$(grep -E '^version=' "$old_moddir/module.prop" | cut -d'=' -f2-)
@@ -100,7 +100,7 @@ ui_print "• 内核版本: $kver"
 ui_print "• 系统版本: $romver"
 ui_print "---------------------------------------------"
 
-modid="Yuanxing_Stellar_MaxRefresh_Pro"
+modid="Astra_MaxRefresh_Pro"
 pdir="/data/adb/${modid}_data"
 mkdir -p "$pdir"
 set_perm "$pdir" 0 0 0755

@@ -3,13 +3,13 @@ MODDIR=${0%/*}
 
 echo ""
 echo "========================================"
-echo "    星驰引擎_极速高刷Pro 卸载程序"
+echo "    Astra_MaxRefresh_Pro 卸载程序"
 echo "========================================"
 echo ""
 
 echo "[*] 正在删除配置数据..."
-rm -rf "/data/adb/Yuanxing_Stellar_MaxRefresh_Pro_data"
-rm -rf /data/local/tmp/Yuanxing_*
+rm -rf "/data/adb/Astra_MaxRefresh_Pro_data"
+rm -rf /data/local/tmp/Astra_*
 echo "[✓] 配置数据已删除"
 echo ""
 

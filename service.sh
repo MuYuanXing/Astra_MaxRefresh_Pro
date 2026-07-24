@@ -3,7 +3,7 @@ MODDIR=${0%/*}
 cfg="$MODDIR/config.json"
 apps="$MODDIR/apps.conf"
 rates="$MODDIR/rates.conf"
-pdir="/data/adb/Yuanxing_Stellar_MaxRefresh_Pro_data"
+pdir="/data/adb/Astra_MaxRefresh_Pro_data"
 
 ltpo_mode=""
 [ -f "$MODDIR/ltpo_mode" ] && ltpo_mode=$(cat "$MODDIR/ltpo_mode" 2>/dev/null | tr -d '\r\n')
