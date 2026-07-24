@@ -13,6 +13,8 @@ set_perm "$MODPATH/uninstall.sh" 0 0 0755
 
 mod_name=$(grep -E '^name=' "$MODPATH/module.prop" | cut -d'=' -f2-)
 mod_ver=$(grep -E '^version=' "$MODPATH/module.prop" | cut -d'=' -f2-)
+target_ver="$mod_ver"
+[ -z "$target_ver" ] && target_ver="当前版本"
 
 old_moddir="/data/adb/modules/Astra_MaxRefresh_Pro"
 if [ -f "$old_moddir/module.prop" ]; then
@@ -24,7 +26,7 @@ if [ -f "$old_moddir/module.prop" ]; then
         ui_print " "
         ui_print "  ❌ 检测到旧版本 $old_ver (versionCode=$old_vc)"
         ui_print " "
-        ui_print "  V4.5 不支持从旧版本直接覆盖安装！"
+        ui_print "  ${target_ver} 不支持从旧版本直接覆盖安装！"
         ui_print "  请按以下步骤操作："
         ui_print " "
         ui_print "  1) 进入以下路径执行使用 Root 权限执行卸载脚本："
@@ -34,11 +36,11 @@ if [ -f "$old_moddir/module.prop" ]; then
         ui_print " "
         ui_print "  3) 重启手机"
         ui_print " "
-        ui_print "  4) 重启后再重新刷入 V4.5"
+        ui_print "  4) 重启后再重新刷入 ${target_ver}"
         ui_print " "
         ui_print "============================================="
         ui_print " "
-        abort "请先卸载旧版本再安装 V4.5"
+        abort "请先卸载旧版本再安装 ${target_ver}"
     fi
 fi
 
