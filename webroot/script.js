@@ -1,6 +1,6 @@
-class StellarEngine {
+class AstraEngine {
     constructor() {
-        this.defaultId = 'Yuanxing_Stellar_MaxRefresh_Pro';
+        this.defaultId = 'Astra_MaxRefresh_Pro';
         this.moduleId = this.defaultId;
         this.mod = `/data/adb/modules/${this.defaultId}`;
         this.pdir = `/data/adb/${this.defaultId}_data`;
@@ -9,8 +9,59 @@ class StellarEngine {
         this.apps = [];
         this.conf = { rateId: null, appSw: true, appIntv: 1 };
         this.curId = null;
+        this.toastTimer = null;
+        this.themeMedia = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+        this.initTheme();
+        this.initMotion();
         this.init();
     }
+
+    /* ============ 主题管理（跟随系统默认 / 浅色 / 深色） ============ */
+
+    initTheme() {
+        const mode = this.themeMode();
+        this.applyTheme(mode);
+        if (this.themeMedia) {
+            const onChange = () => { if (this.themeMode() === 'auto') this.applyTheme('auto'); };
+            if (typeof this.themeMedia.addEventListener === 'function') this.themeMedia.addEventListener('change', onChange);
+            else if (typeof this.themeMedia.addListener === 'function') this.themeMedia.addListener(onChange);
+        }
+    }
+
+    themeMode() {
+        const m = localStorage.getItem('stellar-theme');
+        return (m === 'light' || m === 'dark' || m === 'auto') ? m : 'auto';
+    }
+
+    applyTheme(mode) {
+        localStorage.setItem('stellar-theme', mode);
+        const resolved = (mode === 'auto')
+            ? (this.themeMedia && this.themeMedia.matches ? 'dark' : 'light')
+            : mode;
+        document.documentElement.dataset.theme = resolved;
+        document.querySelectorAll('.theme-seg-btn[data-mode]').forEach(b => {
+            b.classList.toggle('active', b.dataset.mode === mode);
+        });
+    }
+
+    /* ============ 动画等级（高 / 中 / 低） ============ */
+
+    initMotion() { this.applyMotion(this.motionLevel()); }
+
+    motionLevel() {
+        const v = localStorage.getItem('stellar-motion');
+        return (v === 'medium' || v === 'low') ? v : 'high';
+    }
+
+    applyMotion(level) {
+        localStorage.setItem('stellar-motion', level);
+        document.documentElement.dataset.motion = level;
+        document.querySelectorAll('.motion-seg-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.level === level);
+        });
+    }
+
+    /* ============ 工具方法 ============ */
 
     cleanStr(v) { return String(v ?? '').trim(); }
 
@@ -121,6 +172,12 @@ class StellarEngine {
         this.toast(this.cut(msg));
     }
 
+    vibrate(ms = 10) {
+        try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* ignore */ }
+    }
+
+    /* ============ KernelSU 执行层 ============ */
+
     async execFull(cmd, timeoutMs = 8000) {
         return new Promise(resolve => {
             const cb = `cb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -176,10 +233,11 @@ class StellarEngine {
         return this.ltpoMode || '未知';
     }
 
+    /* ============ 初始化 ============ */
+
     async init() {
         this.loadModuleInfo();
         await this.loadLtpoMode();
-        await this.loadDev();
         await this.loadRates();
         await this.loadConf();
         await this.loadApps();
@@ -190,7 +248,24 @@ class StellarEngine {
 
     bindEv() {
         document.querySelectorAll('.tab-item').forEach(t => {
-            t.addEventListener('click', e => this.page(e.currentTarget.dataset.page));
+            t.addEventListener('click', e => {
+                this.vibrate(8);
+                this.page(e.currentTarget.dataset.page);
+            });
+        });
+
+        document.querySelectorAll('.theme-seg-btn[data-mode]').forEach(b => {
+            b.addEventListener('click', e => {
+                this.vibrate(8);
+                this.applyTheme(e.currentTarget.dataset.mode);
+            });
+        });
+
+        document.querySelectorAll('.motion-seg-btn').forEach(b => {
+            b.addEventListener('click', e => {
+                this.vibrate(8);
+                this.applyMotion(e.currentTarget.dataset.level);
+            });
         });
 
         document.getElementById('save-global-rate').addEventListener('click', () => this.saveRate());
@@ -199,38 +274,33 @@ class StellarEngine {
         });
         document.getElementById('save-rates').addEventListener('click', () => this.saveRates());
         document.getElementById('save-app-switch').addEventListener('click', () => this.saveAppSwitch());
+
         const intv = document.getElementById('app-switch-interval');
-        const dec = document.getElementById('app-switch-interval-dec');
-        const inc = document.getElementById('app-switch-interval-inc');
         const bump = (delta) => {
             if (!intv) return;
             const min = parseInt(intv.min || '1', 10);
             const max = parseInt(intv.max || '10', 10);
             const cur = parseInt(intv.value || String(min), 10);
             const base = Number.isFinite(cur) ? cur : min;
-            const next = Math.max(min, Math.min(max, base + delta));
-            intv.value = String(next);
+            intv.value = String(Math.max(min, Math.min(max, base + delta)));
+            this.vibrate(6);
         };
-        dec?.addEventListener('click', () => bump(-1));
-        inc?.addEventListener('click', () => bump(1));
+        document.getElementById('app-switch-interval-dec')?.addEventListener('click', () => bump(-1));
+        document.getElementById('app-switch-interval-inc')?.addEventListener('click', () => bump(1));
+
         document.getElementById('add-app-config').addEventListener('click', () => this.showInput());
         document.getElementById('input-cancel').addEventListener('click', () => this.hideInput());
         document.getElementById('input-done').addEventListener('click', () => this.addApp());
-        document.getElementById('coolapk-link').addEventListener('click', () => {
-            this.open('http://www.coolapk.com/u/28719807');
+        document.getElementById('app-input-modal').addEventListener('click', e => {
+            if (e.target.id === 'app-input-modal') this.hideInput();
         });
-        document.getElementById('qq-link').addEventListener('click', () => {
-            this.open('https://qun.qq.com/universal-share/share?ac=1&authKey=Jid2j2LBS4R9SXVVRYmB%2FC9xfj3bpNBhttDW2hF1RaqfXmXZFzLUtQADssAMIdMZ&busi_data=eyJncm91cENvZGUiOiI5NzkyMjE4MjIiLCJ0b2tlbiI6IlJNbm96d3JFWWxwM1dxaHRNOWJRcDNLOEpPOUJqU1BwbXFYM3FZRWt3OUdGTzQ2ekNTOVVqa28wQUhwbWlkaEwiLCJ1aW4iOiIzODk0Mzc0NzQxIn0%3D&data=TonB06_M--jrcRTgaBtD3ZfGmxSwWEeuCfTKjic4lriNB78A9ZKcCy8ajlc5w4xfP9g3vX4pqifQf5F2rovHPg&svctype=4&tempid=h5_group_info');
-        });
-        document.getElementById('donate-wx').addEventListener('click', () => this.showQr('pay/wxpay.png'));
-        document.getElementById('donate-ali').addEventListener('click', () => this.showQr('pay/alipay.png'));
-        document.getElementById('qr-modal').addEventListener('click', e => {
-            if (e.target.id === 'qr-modal') this.hideQr();
-        });
+
         document.getElementById('confirm-cancel').addEventListener('click', () => {
             document.getElementById('confirm-modal').classList.remove('show');
         });
     }
+
+    /* ============ 数据加载 ============ */
 
     async loadLtpoMode() {
         try {
@@ -253,37 +323,15 @@ class StellarEngine {
         }
         const m = document.getElementById('current-ltpo-mode');
         if (m) m.textContent = this.ltpoText();
-    }
 
-    async loadDev() {
-        try {
-            const raw = await this.execOut(
-                '/system/bin/sh -c \'' +
-                'echo "$(/system/bin/getprop ro.product.model)";' +
-                'mk=$(/system/bin/getprop ro.vendor.oplus.market.name);' +
-                '[ -z "$mk" ] && mk=$(/system/bin/getprop ro.product.market.name);' +
-                'echo "$mk";' +
-                'echo "$(/system/bin/getprop ro.build.version.release)";' +
-                '/system/bin/uname -r;' +
-                'cat /sys/class/power_supply/battery/capacity 2>/dev/null;' +
-                'cat /sys/class/power_supply/battery/temp 2>/dev/null' +
-                '\''
-            );
-            const lines = (raw || '').split('\n');
-            const m = (lines[0] || '').trim();
-            const mk = (lines[1] || '').trim();
-            const av = (lines[2] || '').trim();
-            const kv = (lines[3] || '').trim();
-            const bl = (lines[4] || '').trim();
-            const bt = (lines[5] || '').trim();
-
-            document.getElementById('device-model').textContent = m || '未知';
-            document.getElementById('market-name').textContent = mk || m || '未知';
-            document.getElementById('android-ver').textContent = av ? `Android ${av}` : '未知';
-            document.getElementById('kernel-ver').textContent = kv || '未知';
-            document.getElementById('battery-level').textContent = bl ? `${bl}%` : '未知';
-            document.getElementById('battery-temp').textContent = bt ? `${(parseInt(bt) / 10).toFixed(1)}°C` : '未知';
-        } catch (e) { console.warn(e); }
+        const chip = document.getElementById('hero-ltpo');
+        if (chip) {
+            chip.classList.remove('on', 'warn');
+            if (this.ltpoMode === 'disable') { chip.textContent = 'LTPO 强制禁用'; chip.classList.add('on'); }
+            else if (this.ltpoMode === 'keep') { chip.textContent = 'LTPO 保留 · 全局不生效'; chip.classList.add('warn'); }
+            else if (this.ltpoMode === 'compat') { chip.textContent = 'LTPO 兼容模式'; chip.classList.add('on'); }
+            else chip.textContent = 'LTPO 状态未知';
+        }
     }
 
     async loadConf() {
@@ -316,6 +364,8 @@ class StellarEngine {
         } catch (e) { console.warn(e); }
     }
 
+    /* ============ 扫描与保存 ============ */
+
     async scan() {
         this.toast('正在扫描档位...');
         const raw = await this.execOut(`/system/bin/dumpsys SurfaceFlinger 2>/dev/null | /system/bin/grep 'id=[0-9]*, hwcId='`, 15000);
@@ -337,6 +387,7 @@ class StellarEngine {
         this.rates = arr.map(r => ({ ...r, type: 'native', base: false, ord: 0 }));
         this.drawSettings();
         this.drawSelector();
+        this.vibrate(15);
         this.toast(`扫描完成，共 ${this.rates.length} 个档位`);
     }
 
@@ -355,6 +406,7 @@ class StellarEngine {
         await this.sync();
         this.updInfo();
         this.drawSelector();
+        this.vibrate(15);
         this.toast('档位配置已保存');
     }
 
@@ -371,10 +423,14 @@ class StellarEngine {
         const r = this.rates.find(x => x.id === id);
         await this.apply(id);
         this.updInfo();
+        this.vibrate(15);
         this.toast(`已保存: ${r?.fps || id}Hz (ID:${id})`);
     }
 
+    /* ============ 刷率切换链（核心逻辑，勿动） ============ */
+
     rateOf(id) { return this.rates.find(r => r.id === id) || null; }
+
     nativeFor(res) {
         const n = this.rates.find(r => `${r.w}x${r.h}` === res && r.base);
         return n ? n.id : 1;
@@ -434,6 +490,8 @@ class StellarEngine {
         this.curId = tid;
     }
 
+    /* ============ 应用配置 ============ */
+
     async loadApps() {
         try {
             const c = await this.readFile(`${this.mod}/apps.conf`);
@@ -457,6 +515,8 @@ class StellarEngine {
         await this.execOut(`/system/bin/mkdir -p ${p} && /system/bin/cp -af ${m}/config.json ${m}/apps.conf ${m}/rates.conf ${p}/ 2>/dev/null`, 8000);
     }
 
+    /* ============ 渲染层 ============ */
+
     render() {
         this.drawSelector();
         this.drawSettings();
@@ -465,27 +525,49 @@ class StellarEngine {
         this.updInfo();
     }
 
+    stagger(container) {
+        container.querySelectorAll('.pop-in').forEach((el, i) => {
+            el.style.animationDelay = `${Math.min(i * 45, 400)}ms`;
+        });
+    }
+
     drawSelector() {
         const el = document.getElementById('rate-selector');
         const note = document.getElementById('rate-note');
         if (!this.rates.length) { el.innerHTML = ''; note.style.display = 'block'; return; }
         note.style.display = 'none';
-        el.innerHTML = this.rates.map(r => {
-            const typeClass = r.type === 'overclock' ? 'overclock' : '';
-            const typeText = r.type === 'overclock' ? '超频' : '原生';
-            const active = this.conf.rateId === r.id ? 'active' : '';
-            return `
-            <div class="rate-item ${active}" data-id="${r.id}">
-                <div class="rate-item-left">
-                    <span class="rate-label">${this.escapeHtml(r.fps)}Hz</span>
-                    <span class="rate-type-tag ${typeClass}">${typeText}</span>
-                </div>
-                <span class="rate-id">${this.escapeHtml(r.w)}x${this.escapeHtml(r.h)} (ID:${this.escapeHtml(r.id)})</span>
-            </div>
-        `}).join('');
+
+        // 按分辨率分组
+        const groups = [];
+        const seen = new Map();
+        this.rates.forEach(r => {
+            const key = `${r.w}x${r.h}`;
+            if (!seen.has(key)) { seen.set(key, []); groups.push(key); }
+            seen.get(key).push(r);
+        });
+
+        el.innerHTML = groups.map(key => {
+            const items = seen.get(key).map(r => {
+                const typeClass = r.type === 'overclock' ? 'overclock' : '';
+                const typeText = r.type === 'overclock' ? '超频' : '原生';
+                const active = this.conf.rateId === r.id ? 'active' : '';
+                return `
+                <div class="rate-item pop-in ${active}" data-id="${r.id}">
+                    <div class="rate-item-left">
+                        <span class="rate-label">${this.escapeHtml(r.fps)}Hz</span>
+                        <span class="rate-type-tag ${typeClass}">${typeText}</span>
+                    </div>
+                    <span class="rate-id">ID ${this.escapeHtml(r.id)}</span>
+                </div>`;
+            }).join('');
+            return `<div class="rate-group-label">${this.escapeHtml(key)} 分辨率</div>${items}`;
+        }).join('');
+        this.stagger(el);
+
         if (this.ltpoMode === 'keep') return;
         el.querySelectorAll('.rate-item').forEach(x => {
             x.addEventListener('click', e => {
+                this.vibrate(8);
                 el.querySelectorAll('.rate-item').forEach(y => y.classList.remove('active'));
                 e.currentTarget.classList.add('active');
             });
@@ -495,11 +577,11 @@ class StellarEngine {
     drawSettings() {
         const el = document.getElementById('rate-settings-list');
         if (!this.rates.length) {
-            el.innerHTML = '<div style="text-align:center;padding:20px;color:#8E8E93">请先执行全量扫描</div>';
+            el.innerHTML = '<div class="empty-state">请先执行「全量扫描」<br>扫描你设备支持的刷新率档位</div>';
             return;
         }
         el.innerHTML = this.rates.map((r, i) => `
-            <div class="rate-setting-item ${r.base ? 'is-base' : ''}" data-idx="${i}">
+            <div class="rate-setting-item pop-in ${r.base ? 'is-base' : ''}" data-idx="${i}">
                 <div class="rate-setting-header">
                     <div class="rate-setting-info">
                         <span class="rate-setting-fps">${r.fps}Hz</span>
@@ -510,7 +592,7 @@ class StellarEngine {
                         <span class="type-btn overclock ${r.type === 'overclock' ? 'active' : ''}" data-idx="${i}" data-type="overclock">超频</span>
                     </div>
                 </div>
-                <div class="rate-setting-meta">${r.w}x${r.h} · ID:${r.id}</div>
+                <div class="rate-setting-meta">${r.w}x${r.h} · ID ${r.id}</div>
                 <div class="rate-setting-action">
                     <div class="base-btn ${r.base ? 'is-base' : ''}" data-idx="${i}">
                         ${r.base ? '✓ 已设为该分辨率的原生基准' : '设为该分辨率的原生基准'}
@@ -518,15 +600,17 @@ class StellarEngine {
                 </div>
                 ${r.type === 'overclock' ? `
                     <div class="order-input-row">
-                        <span class="order-label">切换顺序 <span class="required">*必填</span>:</span>
-                        <input type="number" class="order-input" data-idx="${i}" value="${r.ord || ''}" placeholder="必填">
+                        <span class="order-label">切换顺序 <span class="required">*必填</span></span>
+                        <input type="number" class="order-input" data-idx="${i}" value="${r.ord || ''}" placeholder="必填" inputmode="numeric">
                     </div>
                 ` : ''}
             </div>
         `).join('');
+        this.stagger(el);
 
         el.querySelectorAll('.type-btn').forEach(b => {
             b.addEventListener('click', e => {
+                this.vibrate(6);
                 const i = parseInt(e.target.dataset.idx), t = e.target.dataset.type;
                 this.rates[i].type = t;
                 if (t === 'native') this.rates[i].ord = 0;
@@ -535,6 +619,7 @@ class StellarEngine {
         });
         el.querySelectorAll('.base-btn').forEach(b => {
             b.addEventListener('click', e => {
+                this.vibrate(10);
                 const i = parseInt(e.target.dataset.idx), r = this.rates[i], res = `${r.w}x${r.h}`;
                 this.rates.forEach(x => { if (`${x.w}x${x.h}` === res) x.base = false; });
                 this.rates[i].base = true;
@@ -553,18 +638,20 @@ class StellarEngine {
     drawApps() {
         const el = document.getElementById('app-config-list');
         if (!this.apps.length) {
-            el.innerHTML = '<div style="text-align:center;padding:20px;color:#8E8E93">暂无配置</div>';
+            el.innerHTML = '<div class="empty-state">暂无配置<br>点右上角「添加」创建第一条规则</div>';
             return;
         }
         el.innerHTML = this.apps.map((a, i) => `
-            <div class="config-item">
+            <div class="config-item pop-in">
                 <span class="config-pkg">${this.escapeHtml(a.pkg)}</span>
-                <span class="config-id">ID: ${this.escapeHtml(a.id)}</span>
+                <span class="config-id">ID ${this.escapeHtml(a.id)}</span>
                 <span class="config-delete" data-idx="${i}">删除</span>
             </div>
         `).join('');
+        this.stagger(el);
         el.querySelectorAll('.config-delete').forEach(x => {
             x.addEventListener('click', async e => {
+                this.vibrate(10);
                 this.apps.splice(parseInt(e.target.dataset.idx), 1);
                 await this.saveApps();
                 this.drawApps();
@@ -579,6 +666,37 @@ class StellarEngine {
         gid.textContent = (this.ltpoMode === 'keep') ? '不生效(保留LTPO)' : (this.conf.rateId || '未设置');
         const bs = this.rates.filter(r => r.base);
         nbase.textContent = bs.length ? bs.map(b => `${b.w}x${b.h}→ID:${b.id}`).join(', ') : '未设置';
+
+        // Hero 状态卡
+        const valueEl = document.getElementById('hero-value');
+        const fpsEl = document.getElementById('hero-fps');
+        const unitEl = document.getElementById('hero-unit');
+        const metaEl = document.getElementById('hero-meta');
+        if (fpsEl) {
+            const r = this.conf.rateId != null ? this.rateOf(this.conf.rateId) : null;
+            if (this.ltpoMode === 'keep') {
+                fpsEl.textContent = 'LTPO';
+                unitEl.textContent = '';
+                metaEl.textContent = '保留系统 LTPO，由应用配置驱动';
+            } else if (r) {
+                fpsEl.textContent = r.fps;
+                unitEl.textContent = 'Hz';
+                metaEl.textContent = `${r.w}x${r.h} · ID ${r.id}${r.type === 'overclock' ? ' · 超频' : ' · 原生'}`;
+            } else if (this.conf.rateId != null) {
+                fpsEl.textContent = this.conf.rateId;
+                unitEl.textContent = '';
+                metaEl.textContent = `档位 ID ${this.conf.rateId}（未在已扫描列表中）`;
+            } else {
+                fpsEl.textContent = '--';
+                unitEl.textContent = '';
+                metaEl.textContent = '尚未设置全局档位';
+            }
+            if (valueEl) {
+                valueEl.classList.remove('pop');
+                void valueEl.offsetWidth;
+                valueEl.classList.add('pop');
+            }
+        }
     }
 
     drawAppSwitch() {
@@ -600,22 +718,30 @@ class StellarEngine {
         const res = await this.writeFile(`${this.mod}/config.json`, JSON.stringify(obj));
         if (res.errno !== 0) { this.toastErr('保存', res); return; }
         await this.sync();
+        this.vibrate(15);
         this.toast('应用切换设置已保存');
     }
+
+    /* ============ 页面切换 ============ */
 
     page(p) {
         document.querySelectorAll('.ui-content').forEach(x => x.classList.add('hidden'));
         const t = document.getElementById(`page-${p}`);
-        t.classList.remove('hidden');
-        t.style.justifyContent = (p === 'home' || p === 'settings' || p === 'apps') ? 'flex-start' : 'center';
+        if (!t) return;
+        t.classList.remove('hidden', 'entering');
+        void t.offsetWidth; // 重启动画
+        t.classList.add('entering');
         document.querySelectorAll('.tab-item').forEach(x => x.classList.remove('active'));
         document.querySelector(`.tab-item[data-page="${p}"]`)?.classList.add('active');
     }
+
+    /* ============ 弹层 ============ */
 
     showInput() {
         document.getElementById('app-input-modal').classList.add('show');
         document.getElementById('app-package').value = '';
         document.getElementById('app-rate-id').value = '';
+        setTimeout(() => document.getElementById('app-package').focus(), 350);
     }
 
     hideInput() { document.getElementById('app-input-modal').classList.remove('show'); }
@@ -632,6 +758,7 @@ class StellarEngine {
         await this.saveApps();
         this.drawApps();
         this.hideInput();
+        this.vibrate(15);
         this.toast('配置已添加');
     }
 
@@ -648,33 +775,13 @@ class StellarEngine {
         });
     }
 
-    async open(url) { await this.execOut(`/system/bin/am start -a android.intent.action.VIEW -d ${this.shQuote(url)}`, 8000); }
-
-    showQr(src) {
-        const m = document.getElementById('qr-modal');
-        const img = document.getElementById('qr-image');
-        img.onerror = () => {
-            img.onerror = null;
-            this.hideQr();
-            this.toast('二维码资源缺失');
-        };
-        img.src = src;
-        m.classList.remove('hidden');
-        setTimeout(() => m.classList.add('show'), 10);
-    }
-
-    hideQr() {
-        const m = document.getElementById('qr-modal');
-        m.classList.remove('show');
-        setTimeout(() => m.classList.add('hidden'), 300);
-    }
-
     toast(msg) {
         const t = document.getElementById('toast');
         t.textContent = msg;
         t.classList.add('show');
-        setTimeout(() => t.classList.remove('show'), 2000);
+        if (this.toastTimer) clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => new StellarEngine());
+document.addEventListener('DOMContentLoaded', () => new AstraEngine());
