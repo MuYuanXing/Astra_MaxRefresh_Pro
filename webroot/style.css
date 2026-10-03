@@ -1,10 +1,10 @@
 /* ============================================================
-   Astra_MaxRefresh_Pro — iOS 26 液态玻璃设计系统
-   配方：模糊 + 饱和 + 低填充 + 边缘折射光
-   浅色默认 · 深色手动/跟随系统 · 青绿色系 · 动态流光
+   Astra_MaxRefresh_Pro — iOS 26 liquid glass design system
+   Recipe: blur + saturation + low fill + edge refraction light
+   Light default · Dark manual/follow-system · Teal palette · Animated streamers
    ============================================================ */
 
-/* ---------- 浅色主题（默认） ---------- */
+/* ---------- Light theme (default) ---------- */
 :root {
     --bg-deep: #e9eef0;
 
@@ -25,7 +25,7 @@
     --red-soft: rgba(224, 52, 43, 0.1);
     --red-border: rgba(224, 52, 43, 0.2);
 
-    /* 液态玻璃材质 */
+    /* Liquid glass material */
     --glass-tint: rgba(255, 255, 255, 0.28);
     --glass-blur: blur(20px) saturate(160%);
     --rim: rgba(255, 255, 255, 0.55);
@@ -43,7 +43,7 @@
     --backdrop: rgba(232, 238, 240, 0.35);
     --hero-chip-bg: rgba(255, 255, 255, 0.3);
 
-    /* 背景：青绿极光 + 流光 */
+    /* Background: teal aurora + streamers */
     --orb-a: radial-gradient(circle, rgba(50, 205, 185, 0.55), transparent 68%);
     --orb-b: radial-gradient(circle, rgba(80, 195, 245, 0.45), transparent 68%);
     --orb-c: radial-gradient(circle, rgba(95, 215, 150, 0.45), transparent 68%);
@@ -54,14 +54,14 @@
     --flow-1: rgba(255, 255, 255, 0.5);
     --flow-2: rgba(140, 235, 215, 0.28);
 
-    /* 弹簧动效 */
+    /* Spring motion */
     --spring: cubic-bezier(0.32, 0.72, 0, 1);
     --spring-bounce: cubic-bezier(0.34, 1.4, 0.44, 1);
     --dur-fast: 180ms;
     --dur-med: 280ms;
     --dur-slow: 420ms;
 
-    /* 间距 */
+    /* Spacing */
     --space-1: 4px;
     --space-2: 8px;
     --space-3: 12px;
@@ -74,13 +74,13 @@
     --radius-md: 18px;
     --radius-sm: 12px;
 
-    /* 安全区：宿主 internal/insets.css 提供真实值；
-       桌面浏览器兜底 env()，再兜底 0 */
+    /* Safe area: the host provides real values via internal/insets.css;
+       desktop browsers fall back to env(), then to 0 */
     --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
     --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 
-/* ---------- 深色主题 ---------- */
+/* ---------- Dark theme ---------- */
 [data-theme="dark"] {
     --bg-deep: #000;
 
@@ -128,7 +128,7 @@
     --flow-2: rgba(90, 200, 255, 0.05);
 }
 
-/* ---------- 基础 ---------- */
+/* ---------- Base ---------- */
 * {
     margin: 0;
     padding: 0;
@@ -155,14 +155,14 @@ button {
     cursor: pointer;
 }
 
-/* 主题切换：只过渡文字/描边，玻璃背景瞬时切换避免重模糊卡顿 */
+/* Theme switch: only text/stroke transition; glass background switches instantly to avoid heavy blur stutter */
 .glass-card, .ui-tabbar, .rate-item, .rate-setting-item,
 .config-item, .ui-input, .order-input, .sheet-panel, .alert-panel,
 .app-config-scroll, .guide, .hero-chip, .type-btn, .info-note, .theme-seg {
     transition: color 200ms ease, border-color 200ms ease;
 }
 
-/* ---------- 背景：极光 + 动态流光 + 星空 ---------- */
+/* ---------- Background: aurora + animated streamers + starfield ---------- */
 .aurora {
     position: fixed;
     inset: 0;
@@ -172,7 +172,7 @@ button {
     transition: background var(--dur-med) ease;
 }
 
-/* 动态流光（两条光带全屏大范围游走） */
+/* Animated streamers (two light bands roaming the full screen) */
 .flow {
     position: absolute;
     top: -30%; left: -30%;
@@ -200,7 +200,7 @@ button {
     100% { transform: translate(-24%, 20%) rotate(-3deg); }
 }
 
-/* 光球：柔边烘焙进渐变，不再用高开销 filter: blur */
+/* Orbs: soft edges baked into the gradient instead of costly filter: blur */
 .orb {
     position: absolute;
     border-radius: 50%;
@@ -233,7 +233,7 @@ button {
 @keyframes drift-b { to { transform: translate(-200px, 160px); } }
 @keyframes drift-c { to { transform: translate(150px, -190px); } }
 
-/* 星空：浮于卡片之上缓慢穿行，仅深色显示 */
+/* Starfield: drifts slowly above the cards, dark theme only */
 .star-layer {
     position: fixed;
     top: 0; left: 0;
@@ -273,7 +273,7 @@ button {
 @keyframes star-drift-1 { to { transform: translate(7vw, 9vh); } }
 @keyframes star-drift-2 { to { transform: translate(-8vw, -7vh); } }
 
-/* ---------- 布局骨架（原生安全区适配） ---------- */
+/* ---------- Layout skeleton (native safe-area aware) ---------- */
 .ui-container {
     position: relative;
     z-index: 1;
@@ -325,7 +325,7 @@ button {
     to { opacity: 1; transform: none; }
 }
 
-/* ---------- 大标题页头 ---------- */
+/* ---------- Large title header ---------- */
 .page-header { padding: var(--space-4) var(--space-2) var(--space-5); }
 
 .page-title {
@@ -341,7 +341,7 @@ button {
     color: var(--text-secondary);
 }
 
-/* ---------- 液态玻璃卡片 ---------- */
+/* ---------- Liquid glass card ---------- */
 .glass-card {
     position: relative;
     background: var(--glass-tint);
@@ -395,7 +395,7 @@ button {
     pointer-events: none;
 }
 
-/* ---------- 行列表 ---------- */
+/* ---------- Row list ---------- */
 .row-list { display: flex; flex-direction: column; }
 
 .info-row {
@@ -437,7 +437,7 @@ button {
     border-color: transparent;
 }
 
-/* ---------- 主页 Hero 状态卡 ---------- */
+/* ---------- Home Hero status card ---------- */
 .hero-card {
     text-align: center;
     padding: var(--space-8) var(--space-5);
@@ -492,7 +492,7 @@ button {
 .hero-chip.on { background: var(--green-soft); color: var(--green); }
 .hero-chip.warn { background: var(--orange-soft); color: var(--orange); }
 
-/* ---------- 全局刷新率选择器 ---------- */
+/* ---------- Global refresh rate selector ---------- */
 .rate-selector { display: flex; flex-direction: column; gap: var(--space-2); }
 
 .rate-group-label {
@@ -551,7 +551,7 @@ button {
 
 .rate-id { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
-/* ---------- 开关 / 步进器 ---------- */
+/* ---------- Toggle / stepper ---------- */
 .ui-switch {
     position: relative;
     width: 52px;
@@ -620,7 +620,7 @@ button {
 .stepper-input::-webkit-outer-spin-button,
 .stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-/* ---------- 外观分段选择 ---------- */
+/* ---------- Appearance segmented control ---------- */
 .theme-seg {
     display: flex;
     background: var(--fill);
@@ -656,7 +656,7 @@ button {
     box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-/* ---------- 设置页 ---------- */
+/* ---------- Settings page ---------- */
 .guide {
     margin-bottom: var(--space-4);
     background: var(--fill);
@@ -813,7 +813,7 @@ button {
 
 .order-input::placeholder { color: var(--text-tertiary); }
 
-/* ---------- 应用列表 ---------- */
+/* ---------- App list ---------- */
 .scan-desc {
     font-size: 12.5px;
     color: var(--text-secondary);
@@ -893,7 +893,7 @@ button {
     line-height: 1.7;
 }
 
-/* ---------- 悬浮玻璃标签栏（避让底部小白条） ---------- */
+/* ---------- Floating glass tab bar (avoids bottom home indicator) ---------- */
 .ui-tabbar {
     position: fixed;
     left: 50%;
@@ -946,7 +946,7 @@ button {
 .tab-icon { width: 23px; height: 23px; fill: currentColor; }
 .tab-label { font-size: 10px; font-weight: 600; letter-spacing: 0.2px; }
 
-/* ---------- 添加应用 · 居中弹窗（避免被输入法遮挡） ---------- */
+/* ---------- Add App · centered modal (avoids keyboard overlap) ---------- */
 .sheet-backdrop {
     position: fixed;
     inset: 0;
@@ -1040,7 +1040,7 @@ button {
     box-shadow: 0 6px 20px rgba(0, 122, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-/* ---------- 确认弹窗 ---------- */
+/* ---------- Confirm dialog ---------- */
 .alert-backdrop {
     position: fixed;
     inset: 0;
@@ -1138,7 +1138,7 @@ button {
     transition: transform var(--dur-slow) var(--spring-bounce), opacity 200ms ease;
 }
 
-/* ---------- 动画等级（高/中/低，适配不同性能设备） ---------- */
+/* ---------- Motion level (high/medium/low, for different device performance) ---------- */
 [data-motion="medium"] .star-layer { display: none !important; }
 [data-motion="medium"] .pop-in,
 [data-motion="medium"] .anim-in { animation: none; }
@@ -1158,7 +1158,7 @@ button {
     backdrop-filter: blur(14px) saturate(150%);
 }
 
-/* ---------- 动效降级 ---------- */
+/* ---------- Motion degradation ---------- */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;

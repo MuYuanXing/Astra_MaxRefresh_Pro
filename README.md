@@ -1,55 +1,56 @@
 # Astra_MaxRefresh_Pro
 
-> **警告**：
-> 1. 操作前请务必确保自己拥有救砖能力。
-> 2. 从旧版（星驰引擎）升级：请先卸载旧模块再刷入，两者为不同模块，配置不互通。
-> 3. 任何问题可前往 QQ群：979221822 咨询。
+> **Warning**:
+>
+>   1. Before doing anything, make sure you are capable of recovering from a brick.
+>   2. Upgrading from the old version (Astra Engine): uninstall the old module first, then flash this one. They are different modules and their configs are not shared.
+>
 
-## 简介
+## Introduction
 
-Astra_MaxRefresh_Pro 是专为欧加（Oplus）系设备打造的高刷模块，支持原生刷新率与超频 DTBO 档位，可强制锁定所需的刷新率，无论在原生还是超频环境下，都能实现稳定高效的屏幕刷新控制。
+Astra_MaxRefresh_Pro is a high-refresh-rate module built specifically for Oplus (OnePlus / OPPO / Realme) devices. It supports native refresh rates and overclocked DTBO tiers, and can force-lock the refresh rate you want. Whether on native or overclocked setups, it delivers stable and efficient display refresh control.
 
-## 功能特性
+## Features
 
-### 刷新率锁定
+### Refresh Rate Locking
 
-- 支持原生刷新率：如 60Hz、90Hz、120Hz 等
-- 支持超频 DTBO：可根据需求自定义刷新率档位
-- 强制锁定指定档位，避免系统自动降频或切换
-- 支持按应用自动切换档位，轮询间隔可调
+  * Supports native refresh rates: 60Hz, 90Hz, 120Hz, etc.
+  * Supports overclocked DTBO: customize refresh rate tiers as needed
+  * Force-locks a chosen tier, preventing the system from auto-downclocking or switching
+  * Supports per-app automatic tier switching with an adjustable polling interval
 
-### WebUI 管理器
+### WebUI Manager
 
-- 液态玻璃视觉设计，浅色 / 深色 / 跟随系统三种外观
-- 动画等级（高 / 中 / 低）可选，适配不同性能设备
-- 边到边布局，原生适配状态栏与手势导航条
+  * Liquid glass visual design; light / dark / follow-system themes
+  * Selectable animation level (high / medium / low) for different performance devices
+  * Edge-to-edge layout, native support for the status bar and gesture navigation bar
 
-### 超频 DTBO 兼容性
+### Overclocked DTBO Compatibility
 
-- 刷入后自动检测所有可用刷新率档位
-- 超频 DTBO 中必须保留 120Hz 档位，否则可能导致功能失效或不稳定
-- 当自定义应用切换功能不生效时，请优先联系提供该 DTBO 的作者更新至最新版本
+  * Automatically detects all available refresh rate tiers after flashing
+  * The 120Hz tier **must** be retained in the overclocked DTBO, otherwise functionality may fail or become unstable
+  * If the custom per-app switching feature does not work, contact the author who provided that DTBO first and update to the latest version
 
-## 使用步骤
+## Usage
 
-1. 下载并刷入 Astra_MaxRefresh_Pro 模块（KernelSU，或 Magisk + KsuWebUI）。
-2. 重启设备，系统将自动检测所有可用刷新率档位。
-3. 打开 WebUI，先在「设置」页执行「全量扫描」。
-4. 配置档位属性：非原生档位选为「超频」，每个分辨率至少选 1 个「原生基准」，所有超频档填写切换顺序，然后保存。
-5. 在「主页」选择全局档位并保存，或在「应用」页按应用添加档位规则。
+  1. Download and flash the Astra_MaxRefresh_Pro module (KernelSU, or Magisk + KsuWebUI).
+  2. Reboot the device; all available refresh rate tiers will be detected automatically.
+  3. Open the WebUI, go to the **Settings** page and run **Full Scan** first.
+  4. Configure tier attributes: mark non-native tiers as **Overclock**, select at least one **Native Baseline** per resolution, fill in the switching order for all overclocked tiers, then save.
+  5. On the **Home** page, select a global tier and save — or add per-app tier rules on the **Apps** page.
 
-## 常见问题
+## FAQ
 
-### 锁屏或关机重启后无法切换到高档位
+### Cannot switch to a higher tier after lock screen or reboot
 
-- 某些设备上，超频 DTBO 在锁屏或关机重启后无法直接切换到高档位；原生用户在重启后几秒内可自动恢复到之前设定的档位。
-- 建议更新超频 DTBO 至最新版本。
+  * On some devices, the overclocked DTBO cannot jump directly to a higher tier after lock screen or reboot; native users automatically restore their previously set tier within a few seconds of rebooting.
+  * It is recommended to update the overclocked DTBO to the latest version.
 
-### 管理器推荐
+### Recommended Manager
 
-- KernelSU 及其分支体验最好。
-- Magisk 用户必须下载 KsuWebUI 软件，并授予 Root 权限后使用。
+  * KernelSU and its forks give the best experience.
+  * Magisk users must install KsuWebUI and grant it root permission before use.
 
----
+* * *
 
-更新日志见 [CHANGELOG.md](CHANGELOG.md)。
+See CHANGELOG.md for the changelog.

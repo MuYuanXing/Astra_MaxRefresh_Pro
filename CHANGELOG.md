@@ -1,29 +1,12 @@
-# 极速高刷Pro 更新日志
+# Changelog
 
-### v5.0 更新
-- 模块更名为 Astra_MaxRefresh_Pro（全新模块ID，与旧版互不覆盖）
-- WebUI 全面重构：iOS 26 液态玻璃设计，重模糊透光 + 边缘折射光
-- 新增浅色/深色/跟随系统三模式外观切换（默认跟随系统）
-- 新增动画等级（高/中/低），适配不同性能设备
-- 背景升级为全屏动态流光 + 深色模式星空
-- 原生边到边适配：状态栏与手势导航条区域无割裂
-- 添加应用改为居中弹窗，避免被输入法遮挡
-- 优化渲染性能：降低模糊开销，主题切换即时响应
-- 移除关于页与设备信息卡片
+## V5.0
+- Renamed to Astra_MaxRefresh_Pro
+- Full liquid glass WebUI rewrite
 
-### v4.5 更新
-- 禁止从旧版本直接覆盖安装，需先卸载旧版再重装，避免配置冲突
-- 修复亮屏唤醒时原生档位刷新率未重新应用的问题
-- 修复配置文件热更新后刷新率未立即生效的问题
-- 重构 service.sh：提取 widen_rates() 和 oc_step_down() 为独立函数
-- 加固 Shell 变量引用安全性
+## V4.4
+- Updated module scripts and WebUI
+- Added V4.4 zip build
 
-### v4.4 更新
-- 同步最新模块脚本与 WebUI 逻辑
-- 新增 V4.4 构建包与发布资源
-
-### v3.1 更新
-- 兼容Apatch及分支管理器，适配真我GT 8 Pro原生144Hz
-
-### v3.0 更新
-- 增加自定义ltpo状态，新增覆盖安装时保留全局配置
+## Earlier
+- Initial releases as Astra Engine

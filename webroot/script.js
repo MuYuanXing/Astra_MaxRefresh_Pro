@@ -16,7 +16,7 @@ class AstraEngine {
         this.init();
     }
 
-    /* ============ 主题管理（跟随系统默认 / 浅色 / 深色） ============ */
+    /* ============ Theme management (follow system default / light / dark) ============ */
 
     initTheme() {
         const mode = this.themeMode();
@@ -44,7 +44,7 @@ class AstraEngine {
         });
     }
 
-    /* ============ 动画等级（高 / 中 / 低） ============ */
+    /* ============ Motion level (high / medium / low) ============ */
 
     initMotion() { this.applyMotion(this.motionLevel()); }
 
@@ -61,7 +61,7 @@ class AstraEngine {
         });
     }
 
-    /* ============ 工具方法 ============ */
+    /* ============ Utilities ============ */
 
     cleanStr(v) { return String(v ?? '').trim(); }
 
@@ -168,7 +168,7 @@ class AstraEngine {
     toastErr(prefix, res) {
         const e = this.firstLine(res?.stderr);
         const n = (res && typeof res.errno !== 'undefined') ? res.errno : '?';
-        const msg = e ? `${prefix}失败(errno=${n}): ${e}` : `${prefix}失败(errno=${n})`;
+        const msg = e ? `${prefix} failed (errno=${n}): ${e}` : `${prefix} failed (errno=${n})`;
         this.toast(this.cut(msg));
     }
 
@@ -176,7 +176,7 @@ class AstraEngine {
         try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* ignore */ }
     }
 
-    /* ============ KernelSU 执行层 ============ */
+    /* ============ KernelSU execution layer ============ */
 
     async execFull(cmd, timeoutMs = 8000) {
         return new Promise(resolve => {
@@ -227,13 +227,13 @@ class AstraEngine {
     }
 
     ltpoText() {
-        if (this.ltpoMode === 'disable') return '强制禁用';
-        if (this.ltpoMode === 'keep') return '保留(全局不生效)';
-        if (this.ltpoMode === 'compat') return '兼容模式';
-        return this.ltpoMode || '未知';
+        if (this.ltpoMode === 'disable') return 'Force disabled';
+        if (this.ltpoMode === 'keep') return 'Kept (global inactive)';
+        if (this.ltpoMode === 'compat') return 'Compatible mode';
+        return this.ltpoMode || 'Unknown';
     }
 
-    /* ============ 初始化 ============ */
+    /* ============ Initialization ============ */
 
     async init() {
         this.loadModuleInfo();
@@ -270,7 +270,7 @@ class AstraEngine {
 
         document.getElementById('save-global-rate').addEventListener('click', () => this.saveRate());
         document.getElementById('scan-rates').addEventListener('click', () => {
-            this.confirm('全量扫描', '此操作会读取系统当前支持的刷新率档位，不会持久修改系统。是否继续？', () => this.scan());
+            this.confirm('Full Scan', 'This will read the refresh rate tiers currently supported by your system. It will not persistently modify the system. Continue?', () => this.scan());
         });
         document.getElementById('save-rates').addEventListener('click', () => this.saveRates());
         document.getElementById('save-app-switch').addEventListener('click', () => this.saveAppSwitch());
@@ -300,7 +300,7 @@ class AstraEngine {
         });
     }
 
-    /* ============ 数据加载 ============ */
+    /* ============ Data loading ============ */
 
     async loadLtpoMode() {
         try {
@@ -327,10 +327,10 @@ class AstraEngine {
         const chip = document.getElementById('hero-ltpo');
         if (chip) {
             chip.classList.remove('on', 'warn');
-            if (this.ltpoMode === 'disable') { chip.textContent = 'LTPO 强制禁用'; chip.classList.add('on'); }
-            else if (this.ltpoMode === 'keep') { chip.textContent = 'LTPO 保留 · 全局不生效'; chip.classList.add('warn'); }
-            else if (this.ltpoMode === 'compat') { chip.textContent = 'LTPO 兼容模式'; chip.classList.add('on'); }
-            else chip.textContent = 'LTPO 状态未知';
+            if (this.ltpoMode === 'disable') { chip.textContent = 'LTPO force disabled'; chip.classList.add('on'); }
+            else if (this.ltpoMode === 'keep') { chip.textContent = 'LTPO kept · global inactive'; chip.classList.add('warn'); }
+            else if (this.ltpoMode === 'compat') { chip.textContent = 'LTPO compatible mode'; chip.classList.add('on'); }
+            else chip.textContent = 'LTPO status unknown';
         }
     }
 
@@ -364,13 +364,13 @@ class AstraEngine {
         } catch (e) { console.warn(e); }
     }
 
-    /* ============ 扫描与保存 ============ */
+    /* ============ Scan and save ============ */
 
     async scan() {
-        this.toast('正在扫描档位...');
+        this.toast('Scanning tiers...');
         const raw = await this.execOut(`/system/bin/dumpsys SurfaceFlinger 2>/dev/null | /system/bin/grep 'id=[0-9]*, hwcId='`, 15000);
         if (!raw) {
-            this.toast('扫描失败：未读取到档位信息');
+            this.toast('Scan failed: no tier information was read');
             return;
         }
         const map = new Map();
@@ -388,46 +388,46 @@ class AstraEngine {
         this.drawSettings();
         this.drawSelector();
         this.vibrate(15);
-        this.toast(`扫描完成，共 ${this.rates.length} 个档位`);
+        this.toast(`Scan complete, ${this.rates.length} tiers found`);
     }
 
     async saveRates() {
         if (this.rates.some(r => r.type === 'overclock' && (!r.ord || r.ord < 1))) {
-            this.toast('请为所有超频档位填写切换顺序(从1开始)');
+            this.toast('Please fill in a switch order (starting at 1) for all overclock tiers');
             return;
         }
         if (!this.rates.some(r => r.base)) {
-            this.toast('请至少设置一个原生基准');
+            this.toast('Please set at least one native baseline');
             return;
         }
         const lines = this.rates.map(r => `${r.id}:${r.w}:${r.h}:${r.fps}:${r.type}:${r.base ? '1' : '0'}:${r.ord || 0}`);
         const res = await this.writeFile(`${this.mod}/rates.conf`, `${lines.join('\n')}`);
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
+        if (res.errno !== 0) { this.toastErr('Save', res); return; }
         await this.sync();
         this.updInfo();
         this.drawSelector();
         this.vibrate(15);
-        this.toast('档位配置已保存');
+        this.toast('Tier configuration saved');
     }
 
     async saveRate() {
-        if (this.ltpoMode === 'keep') { this.toast('保留LTPO模式：全局档位不生效'); return; }
+        if (this.ltpoMode === 'keep') { this.toast('Keep-LTPO mode: global tier has no effect'); return; }
         const el = document.querySelector('#rate-selector .rate-item.active');
-        if (!el) { this.toast('请选择刷新率'); return; }
+        if (!el) { this.toast('Please select a refresh rate'); return; }
         const id = parseInt(el.dataset.id);
         this.conf.rateId = id;
         const obj = { globalRateId: id, appSwitchEnabled: this.conf.appSw, appSwitchInterval: this.conf.appIntv };
         const res = await this.writeFile(`${this.mod}/config.json`, JSON.stringify(obj));
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
+        if (res.errno !== 0) { this.toastErr('Save', res); return; }
         await this.sync();
         const r = this.rates.find(x => x.id === id);
         await this.apply(id);
         this.updInfo();
         this.vibrate(15);
-        this.toast(`已保存: ${r?.fps || id}Hz (ID:${id})`);
+        this.toast(`Saved: ${r?.fps || id}Hz (ID:${id})`);
     }
 
-    /* ============ 刷率切换链（核心逻辑，勿动） ============ */
+    /* ============ Refresh switch chain (core logic, do not touch) ============ */
 
     rateOf(id) { return this.rates.find(r => r.id === id) || null; }
 
@@ -490,7 +490,7 @@ class AstraEngine {
         this.curId = tid;
     }
 
-    /* ============ 应用配置 ============ */
+    /* ============ App configuration ============ */
 
     async loadApps() {
         try {
@@ -505,7 +505,7 @@ class AstraEngine {
     async saveApps() {
         const c = this.apps.map(x => `${x.pkg}=${x.id}`).join('\n');
         const res = await this.writeFile(`${this.mod}/apps.conf`, c);
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
+        if (res.errno !== 0) { this.toastErr('Save', res); return; }
         await this.sync();
     }
 
@@ -515,7 +515,7 @@ class AstraEngine {
         await this.execOut(`/system/bin/mkdir -p ${p} && /system/bin/cp -af ${m}/config.json ${m}/apps.conf ${m}/rates.conf ${p}/ 2>/dev/null`, 8000);
     }
 
-    /* ============ 渲染层 ============ */
+    /* ============ Rendering layer ============ */
 
     render() {
         this.drawSelector();
@@ -537,7 +537,7 @@ class AstraEngine {
         if (!this.rates.length) { el.innerHTML = ''; note.style.display = 'block'; return; }
         note.style.display = 'none';
 
-        // 按分辨率分组
+        // Group by resolution
         const groups = [];
         const seen = new Map();
         this.rates.forEach(r => {
@@ -549,7 +549,7 @@ class AstraEngine {
         el.innerHTML = groups.map(key => {
             const items = seen.get(key).map(r => {
                 const typeClass = r.type === 'overclock' ? 'overclock' : '';
-                const typeText = r.type === 'overclock' ? '超频' : '原生';
+                const typeText = r.type === 'overclock' ? 'Overclock' : 'Native';
                 const active = this.conf.rateId === r.id ? 'active' : '';
                 return `
                 <div class="rate-item pop-in ${active}" data-id="${r.id}">
@@ -560,7 +560,7 @@ class AstraEngine {
                     <span class="rate-id">ID ${this.escapeHtml(r.id)}</span>
                 </div>`;
             }).join('');
-            return `<div class="rate-group-label">${this.escapeHtml(key)} 分辨率</div>${items}`;
+            return `<div class="rate-group-label">${this.escapeHtml(key)} resolution</div>${items}`;
         }).join('');
         this.stagger(el);
 
@@ -577,7 +577,7 @@ class AstraEngine {
     drawSettings() {
         const el = document.getElementById('rate-settings-list');
         if (!this.rates.length) {
-            el.innerHTML = '<div class="empty-state">请先执行「全量扫描」<br>扫描你设备支持的刷新率档位</div>';
+            el.innerHTML = '<div class="empty-state">Please run "Full Scan" first<br>Scans the refresh rate tiers supported by your device</div>';
             return;
         }
         el.innerHTML = this.rates.map((r, i) => `
@@ -585,23 +585,23 @@ class AstraEngine {
                 <div class="rate-setting-header">
                     <div class="rate-setting-info">
                         <span class="rate-setting-fps">${r.fps}Hz</span>
-                        ${r.base ? '<span class="rate-setting-badge">基准</span>' : ''}
+                        ${r.base ? '<span class="rate-setting-badge">Baseline</span>' : ''}
                     </div>
                     <div class="rate-setting-types">
-                        <span class="type-btn native ${r.type === 'native' ? 'active' : ''}" data-idx="${i}" data-type="native">原生</span>
-                        <span class="type-btn overclock ${r.type === 'overclock' ? 'active' : ''}" data-idx="${i}" data-type="overclock">超频</span>
+                        <span class="type-btn native ${r.type === 'native' ? 'active' : ''}" data-idx="${i}" data-type="native">Native</span>
+                        <span class="type-btn overclock ${r.type === 'overclock' ? 'active' : ''}" data-idx="${i}" data-type="overclock">Overclock</span>
                     </div>
                 </div>
                 <div class="rate-setting-meta">${r.w}x${r.h} · ID ${r.id}</div>
                 <div class="rate-setting-action">
                     <div class="base-btn ${r.base ? 'is-base' : ''}" data-idx="${i}">
-                        ${r.base ? '✓ 已设为该分辨率的原生基准' : '设为该分辨率的原生基准'}
+                        ${r.base ? '✓ Set as native baseline for this resolution' : 'Set as native baseline for this resolution'}
                     </div>
                 </div>
                 ${r.type === 'overclock' ? `
                     <div class="order-input-row">
-                        <span class="order-label">切换顺序 <span class="required">*必填</span></span>
-                        <input type="number" class="order-input" data-idx="${i}" value="${r.ord || ''}" placeholder="必填" inputmode="numeric">
+                        <span class="order-label">Switch order <span class="required">*required</span></span>
+                        <input type="number" class="order-input" data-idx="${i}" value="${r.ord || ''}" placeholder="Required" inputmode="numeric">
                     </div>
                 ` : ''}
             </div>
@@ -638,14 +638,14 @@ class AstraEngine {
     drawApps() {
         const el = document.getElementById('app-config-list');
         if (!this.apps.length) {
-            el.innerHTML = '<div class="empty-state">暂无配置<br>点右上角「添加」创建第一条规则</div>';
+            el.innerHTML = '<div class="empty-state">No config yet<br>Tap "Add" in the top-right to create your first rule</div>';
             return;
         }
         el.innerHTML = this.apps.map((a, i) => `
             <div class="config-item pop-in">
                 <span class="config-pkg">${this.escapeHtml(a.pkg)}</span>
                 <span class="config-id">ID ${this.escapeHtml(a.id)}</span>
-                <span class="config-delete" data-idx="${i}">删除</span>
+                <span class="config-delete" data-idx="${i}">Delete</span>
             </div>
         `).join('');
         this.stagger(el);
@@ -655,7 +655,7 @@ class AstraEngine {
                 this.apps.splice(parseInt(e.target.dataset.idx), 1);
                 await this.saveApps();
                 this.drawApps();
-                this.toast('已删除');
+                this.toast('Deleted');
             });
         });
     }
@@ -663,11 +663,11 @@ class AstraEngine {
     updInfo() {
         const gid = document.getElementById('current-global-id');
         const nbase = document.getElementById('current-native-base');
-        gid.textContent = (this.ltpoMode === 'keep') ? '不生效(保留LTPO)' : (this.conf.rateId || '未设置');
+        gid.textContent = (this.ltpoMode === 'keep') ? 'Inactive (Keep-LTPO)' : (this.conf.rateId || 'Not set');
         const bs = this.rates.filter(r => r.base);
-        nbase.textContent = bs.length ? bs.map(b => `${b.w}x${b.h}→ID:${b.id}`).join(', ') : '未设置';
+        nbase.textContent = bs.length ? bs.map(b => `${b.w}x${b.h}→ID:${b.id}`).join(', ') : 'Not set';
 
-        // Hero 状态卡
+        // Hero status card
         const valueEl = document.getElementById('hero-value');
         const fpsEl = document.getElementById('hero-fps');
         const unitEl = document.getElementById('hero-unit');
@@ -677,19 +677,19 @@ class AstraEngine {
             if (this.ltpoMode === 'keep') {
                 fpsEl.textContent = 'LTPO';
                 unitEl.textContent = '';
-                metaEl.textContent = '保留系统 LTPO，由应用配置驱动';
+                metaEl.textContent = 'System LTPO kept, driven by per-app rules';
             } else if (r) {
                 fpsEl.textContent = r.fps;
                 unitEl.textContent = 'Hz';
-                metaEl.textContent = `${r.w}x${r.h} · ID ${r.id}${r.type === 'overclock' ? ' · 超频' : ' · 原生'}`;
+                metaEl.textContent = `${r.w}x${r.h} · ID ${r.id}${r.type === 'overclock' ? ' · Overclock' : ' · Native'}`;
             } else if (this.conf.rateId != null) {
                 fpsEl.textContent = this.conf.rateId;
                 unitEl.textContent = '';
-                metaEl.textContent = `档位 ID ${this.conf.rateId}（未在已扫描列表中）`;
+                metaEl.textContent = `Tier ID ${this.conf.rateId} (not in the scanned list)`;
             } else {
                 fpsEl.textContent = '--';
                 unitEl.textContent = '';
-                metaEl.textContent = '尚未设置全局档位';
+                metaEl.textContent = 'No global tier set yet';
             }
             if (valueEl) {
                 valueEl.classList.remove('pop');
@@ -711,31 +711,31 @@ class AstraEngine {
         const it = document.getElementById('app-switch-interval');
         const enabled = !!sw?.checked;
         const interval = parseInt(it?.value || '1', 10);
-        if (!Number.isFinite(interval) || interval < 1) { this.toast('轮询间隔至少为1秒'); return; }
+        if (!Number.isFinite(interval) || interval < 1) { this.toast('Polling interval must be at least 1 second'); return; }
         this.conf.appSw = enabled;
         this.conf.appIntv = interval;
         const obj = { globalRateId: this.conf.rateId, appSwitchEnabled: this.conf.appSw, appSwitchInterval: this.conf.appIntv };
         const res = await this.writeFile(`${this.mod}/config.json`, JSON.stringify(obj));
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
+        if (res.errno !== 0) { this.toastErr('Save', res); return; }
         await this.sync();
         this.vibrate(15);
-        this.toast('应用切换设置已保存');
+        this.toast('Per-app switch settings saved');
     }
 
-    /* ============ 页面切换 ============ */
+    /* ============ Page switching ============ */
 
     page(p) {
         document.querySelectorAll('.ui-content').forEach(x => x.classList.add('hidden'));
         const t = document.getElementById(`page-${p}`);
         if (!t) return;
         t.classList.remove('hidden', 'entering');
-        void t.offsetWidth; // 重启动画
+        void t.offsetWidth; // Restart animation
         t.classList.add('entering');
         document.querySelectorAll('.tab-item').forEach(x => x.classList.remove('active'));
         document.querySelector(`.tab-item[data-page="${p}"]`)?.classList.add('active');
     }
 
-    /* ============ 弹层 ============ */
+    /* ============ Overlay ============ */
 
     showInput() {
         document.getElementById('app-input-modal').classList.add('show');
@@ -749,9 +749,9 @@ class AstraEngine {
     async addApp() {
         const pkg = document.getElementById('app-package').value.trim();
         const id = document.getElementById('app-rate-id').value.trim();
-        if (!pkg || !id) { this.toast('请填写完整信息'); return; }
-        if (!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)+$/.test(pkg)) { this.toast('包名格式不正确'); return; }
-        if (!/^[0-9]+$/.test(id)) { this.toast('刷新率ID必须为数字'); return; }
+        if (!pkg || !id) { this.toast('Please fill in all fields'); return; }
+        if (!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)+$/.test(pkg)) { this.toast('Invalid package name format'); return; }
+        if (!/^[0-9]+$/.test(id)) { this.toast('Refresh rate ID must be a number'); return; }
         const idx = this.apps.findIndex(x => x.pkg === pkg);
         if (idx >= 0) this.apps[idx].id = id;
         else this.apps.push({ pkg, id });
@@ -759,7 +759,7 @@ class AstraEngine {
         this.drawApps();
         this.hideInput();
         this.vibrate(15);
-        this.toast('配置已添加');
+        this.toast('Configuration added');
     }
 
     confirm(title, msg, cb) {
