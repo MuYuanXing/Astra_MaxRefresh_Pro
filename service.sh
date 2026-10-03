@@ -218,7 +218,14 @@ app_rate() {
     local pkg="$1"
     [ -z "$pkg" ] && return
     [ ! -f "$apps" ] && return
-    awk -F= -v p="$pkg" '$1==p {gsub(/[[:space:]]+/, "", $2); print $2; exit}' "$apps" 2>/dev/null
+    # apps.conf 每行: 包名=档位ID[:1启用|0停用]，缺省视为启用
+    awk -F= -v p="$pkg" '$1==p {
+        gsub(/[[:space:]\r]+/, "", $2)
+        n = split($2, a, ":")
+        if (n >= 2 && a[2] != "1") exit
+        if (a[1] ~ /^[0-9]+$/) print a[1]
+        exit
+    }' "$apps" 2>/dev/null
 }
 
 focus_app() {

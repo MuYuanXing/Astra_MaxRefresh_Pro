@@ -7,6 +7,12 @@ class AstraEngine {
         this.ltpoMode = '';
         this.rates = [];
         this.apps = [];
+        this.appList = [];
+        this.rowMap = new Map();
+        this.appMap = new Map();
+        this.showSys = false;
+        this.keyword = '';
+        this.sheetPkg = '';
         this.conf = { rateId: null, appSw: true, appIntv: 1 };
         this.curId = null;
         this.toastTimer = null;
@@ -288,15 +294,37 @@ class AstraEngine {
         document.getElementById('app-switch-interval-dec')?.addEventListener('click', () => bump(-1));
         document.getElementById('app-switch-interval-inc')?.addEventListener('click', () => bump(1));
 
-        document.getElementById('add-app-config').addEventListener('click', () => this.showInput());
-        document.getElementById('input-cancel').addEventListener('click', () => this.hideInput());
-        document.getElementById('input-done').addEventListener('click', () => this.addApp());
-        document.getElementById('app-input-modal').addEventListener('click', e => {
-            if (e.target.id === 'app-input-modal') this.hideInput();
+        const search = document.getElementById('app-search');
+        if (search) {
+            const wrap = search.closest('.app-search');
+            search.addEventListener('input', e => {
+                this.keyword = String(e.target.value || '').trim().toLowerCase();
+                if (wrap) wrap.classList.toggle('has-text', !!this.keyword);
+                this.applyFilter();
+            });
+            const clear = document.getElementById('app-search-clear');
+            clear?.addEventListener('click', () => {
+                search.value = '';
+                this.keyword = '';
+                if (wrap) wrap.classList.remove('has-text');
+                this.applyFilter();
+            });
+        }
+        const sys = document.getElementById('app-include-system');
+        sys?.addEventListener('change', e => {
+            this.showSys = !!e.target.checked;
+            this.reloadAppList();
         });
+
+        document.getElementById('app-sheet').addEventListener('click', e => {
+            if (e.target.id === 'app-sheet') this.closeSheet();
+        });
+        document.getElementById('sheet-close').addEventListener('click', () => this.closeSheet());
+        document.getElementById('sheet-remove').addEventListener('click', () => this.removeRule());
 
         document.getElementById('confirm-cancel').addEventListener('click', () => {
             document.getElementById('confirm-modal').classList.remove('show');
+            this.lockScroll(false);
         });
     }
 
@@ -366,6 +394,10 @@ class AstraEngine {
 
     /* ============ 扫描与保存 ============ */
 
+    ratesConfText() {
+        return this.rates.map(r => `${r.id}:${r.w}:${r.h}:${r.fps}:${r.type}:${r.base ? '1' : '0'}:${r.ord || 0}`).join('\n');
+    }
+
     async scan() {
         this.toast('正在扫描档位...');
         const raw = await this.execOut(`/system/bin/dumpsys SurfaceFlinger 2>/dev/null | /system/bin/grep 'id=[0-9]*, hwcId='`, 15000);
@@ -383,12 +415,25 @@ class AstraEngine {
             }
         });
         const arr = Array.from(map.values());
+        if (!arr.length) { this.toast('扫描失败：未识别到任何档位'); return; }
         arr.sort((a, b) => a.fps !== b.fps ? a.fps - b.fps : parseInt(a.w) - parseInt(b.w));
-        this.rates = arr.map(r => ({ ...r, type: 'native', base: false, ord: 0 }));
+
+        // 保留已配置过的属性，新档位按原生处理
+        const old = new Map(this.rates.map(r => [r.id, r]));
+        this.rates = arr.map(r => {
+            const p = old.get(r.id);
+            return { ...r, type: p ? p.type : 'native', base: !!(p && p.base), ord: p ? (p.ord || 0) : 0 };
+        });
+
+        const res = await this.writeFile(`${this.mod}/rates.conf`, this.ratesConfText());
+        if (res.errno !== 0) { this.toastErr('保存档位', res); return; }
+        await this.sync();
+
         this.drawSettings();
         this.drawSelector();
+        this.updInfo();
         this.vibrate(15);
-        this.toast(`扫描完成，共 ${this.rates.length} 个档位`);
+        this.toast(`扫描完成，共 ${this.rates.length} 个档位，已保存`);
     }
 
     async saveRates() {
@@ -400,8 +445,7 @@ class AstraEngine {
             this.toast('请至少设置一个原生基准');
             return;
         }
-        const lines = this.rates.map(r => `${r.id}:${r.w}:${r.h}:${r.fps}:${r.type}:${r.base ? '1' : '0'}:${r.ord || 0}`);
-        const res = await this.writeFile(`${this.mod}/rates.conf`, `${lines.join('\n')}`);
+        const res = await this.writeFile(`${this.mod}/rates.conf`, this.ratesConfText());
         if (res.errno !== 0) { this.toastErr('保存', res); return; }
         await this.sync();
         this.updInfo();
@@ -490,29 +534,120 @@ class AstraEngine {
         this.curId = tid;
     }
 
-    /* ============ 应用配置 ============ */
+    /* ============ 应用列表（含名称 / 图标解析） ============ */
 
-    async loadApps() {
+    ksuList(type) {
+        try {
+            if (!window.ksu || typeof window.ksu.listPackages !== 'function') return [];
+            const r = window.ksu.listPackages(type);
+            const a = Array.isArray(r) ? r : JSON.parse(r);
+            return Array.isArray(a) ? a.filter(x => typeof x === 'string' && x) : [];
+        } catch (e) { return []; }
+    }
+
+    ksuInfo(packages) {
+        if (!packages.length) return new Map();
+        try {
+            if (!window.ksu || typeof window.ksu.getPackagesInfo !== 'function') return new Map();
+            const raw = window.ksu.getPackagesInfo(JSON.stringify(packages));
+            const arr = Array.isArray(raw) ? raw : JSON.parse(raw);
+            const m = new Map();
+            if (Array.isArray(arr)) {
+                arr.forEach(x => {
+                    if (x && x.packageName && !x.error) m.set(x.packageName, x);
+                });
+            }
+            return m;
+        } catch (e) { return new Map(); }
+    }
+
+    loadInstalled() {
+        const user = this.ksuList('user');
+        const sys = this.showSys ? this.ksuList('system') : [];
+        const pkgs = sys.concat(user);
+        if (!pkgs.length) return [];
+        const info = this.ksuInfo(pkgs);
+        const sysSet = new Set(sys);
+        return pkgs.map(pkg => ({
+            pkg,
+            sys: sysSet.has(pkg),
+            name: (info.get(pkg) || {}).appLabel || ''
+        }));
+    }
+
+    async loadRules() {
         try {
             const c = await this.readFile(`${this.mod}/apps.conf`);
-            this.apps = (c || '').split('\n').filter(l => l.includes('=')).map(l => {
-                const [p, i] = l.split('=');
-                return { pkg: p.trim(), id: i.trim() };
-            }).filter(x => x.pkg && x.id);
-        } catch (e) { console.warn(e); }
+            return (c || '').split('\n').filter(l => l.includes('=')).map(l => {
+                const i = l.indexOf('=');
+                const pkg = l.slice(0, i).trim();
+                const rest = l.slice(i + 1).replace(/[\s\r]+/g, '');
+                const p = rest.split(':');
+                const id = parseInt(p[0], 10);
+                return { pkg, id: Number.isFinite(id) ? id : null, on: p.length < 2 || p[1] === '1' };
+            }).filter(x => x.pkg && x.id != null);
+        } catch (e) { console.warn(e); return []; }
+    }
+
+    async loadApps() {
+        this.apps = await this.loadRules();
+        let installed = [];
+        try { installed = await this.loadInstalled(); } catch (e) { console.warn(e); }
+        const rules = new Map(this.apps.map(r => [r.pkg, r]));
+        this.appList = installed.map(x => {
+            const r = rules.get(x.pkg);
+            return {
+                pkg: x.pkg, sys: !!x.sys,
+                id: r ? r.id : null, on: r ? !!r.on : false,
+                name: x.name || ''
+            };
+        });
+        this.sortAppList();
+        this.appMap = new Map(this.appList.map(a => [a.pkg, a]));
+    }
+
+    sortAppList() {
+        const rank = a => a.on ? 0 : (a.id != null ? 1 : (a.sys ? 3 : 2));
+        this.appList.sort((x, y) => rank(x) - rank(y) || String(x.pkg).localeCompare(String(y.pkg)));
+    }
+
+    findApp(pkg) { return this.appMap.get(pkg) || null; }
+
+    pkgLabel(pkg) {
+        const parts = String(pkg || '').split('.').filter(x => x && !/^(com|org|net|cn|io|gov|co)$/i.test(x));
+        while (parts.length > 1 && /^(watch|wear|wearable|app|client|phone|mobile)$/i.test(parts[parts.length - 1])) parts.pop();
+        const t = parts.pop() || String(pkg || '');
+        return t.replace(/[_\-]+/g, ' ').replace(/^./, c => c.toUpperCase());
+    }
+
+    commitRules() {
+        const out = [];
+        const seen = new Set();
+        this.appList.forEach(a => { if (a.id != null) { out.push({ pkg: a.pkg, id: a.id, on: !!a.on }); seen.add(a.pkg); } });
+        this.apps.forEach(r => { if (!seen.has(r.pkg) && r.id != null) out.push(r); });   // 保留已卸载应用的旧配置
+        this.apps = out;
     }
 
     async saveApps() {
-        const c = this.apps.map(x => `${x.pkg}=${x.id}`).join('\n');
+        const c = this.apps.map(x => `${x.pkg}=${x.id}:${x.on === false ? 0 : 1}`).join('\n');
         const res = await this.writeFile(`${this.mod}/apps.conf`, c);
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
+        if (res.errno !== 0) { this.toastErr('保存', res); return false; }
         await this.sync();
+        return true;
     }
 
     async sync() {
         const p = this.shQuote(this.pdir);
         const m = this.shQuote(this.mod);
         await this.execOut(`/system/bin/mkdir -p ${p} && /system/bin/cp -af ${m}/config.json ${m}/apps.conf ${m}/rates.conf ${p}/ 2>/dev/null`, 8000);
+    }
+
+    defaultRateId() {
+        if (!this.rates.length) return null;
+        const g = this.conf.rateId;
+        if (g != null && this.rateOf(g)) return g;
+        const nativeTop = this.rates.filter(r => r.type !== 'overclock').sort((a, b) => b.fps - a.fps)[0];
+        return (nativeTop || this.rates[0]).id;
     }
 
     /* ============ 渲染层 ============ */
@@ -635,29 +770,160 @@ class AstraEngine {
         });
     }
 
+    matchKeyword(a) {
+        const k = this.keyword;
+        if (!k) return true;
+        if (a.name.toLowerCase().indexOf(k) >= 0) return true;
+        if (a.pkg.toLowerCase().indexOf(k) >= 0) return true;
+        if (!a.name) return this.pkgLabel(a.pkg).toLowerCase().indexOf(k) >= 0;
+        return false;
+    }
+
+    appAvatar(a) {
+        const url = `ksu://icon/${this.escapeHtml(a.pkg)}`;
+        return `<img src="${url}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`;
+    }
+
+    appSub(a) {
+        if (a.id == null) return this.escapeHtml(a.pkg);
+        const r = this.rateOf(a.id);
+        const rate = r ? `${r.fps}Hz` : `ID ${a.id}`;
+        return `${this.escapeHtml(a.pkg)} · ${this.escapeHtml(rate)}`;
+    }
+
+    rowHtml(a) {
+        return `
+            <div class="app-row${a.on ? ' is-on' : ''}" data-pkg="${this.escapeHtml(a.pkg)}">
+                <div class="app-icon" data-role="icon">${this.appAvatar(a)}</div>
+                <div class="app-main">
+                    <div class="app-name">${this.escapeHtml(a.name || this.pkgLabel(a.pkg))}</div>
+                    <div class="app-sub" data-role="sub" data-h="${this.appSub(a)}">${this.appSub(a)}</div>
+                </div>
+                <label class="ui-switch">
+                    <input type="checkbox" data-role="switch" ${a.on ? 'checked' : ''} aria-label="启用 ${this.escapeHtml(a.pkg)}">
+                    <span class="slider"></span>
+                </label>
+            </div>`;
+    }
+
     drawApps() {
-        const el = document.getElementById('app-config-list');
-        if (!this.apps.length) {
-            el.innerHTML = '<div class="empty-state">暂无配置<br>点右上角「添加」创建第一条规则</div>';
+        const el = document.getElementById('app-list');
+        if (!el) return;
+        if (!this.appList.length) {
+            el.innerHTML = '<div class="empty-state">未读取到已安装应用<br>请确认 Root 管理器已授予本模块权限，且 WebUI 宿主支持应用列表接口</div>';
+            this.rowMap = new Map();
             return;
         }
-        el.innerHTML = this.apps.map((a, i) => `
-            <div class="config-item pop-in">
-                <span class="config-pkg">${this.escapeHtml(a.pkg)}</span>
-                <span class="config-id">ID ${this.escapeHtml(a.id)}</span>
-                <span class="config-delete" data-idx="${i}">删除</span>
-            </div>
-        `).join('');
-        this.stagger(el);
-        el.querySelectorAll('.config-delete').forEach(x => {
-            x.addEventListener('click', async e => {
-                this.vibrate(10);
-                this.apps.splice(parseInt(e.target.dataset.idx), 1);
-                await this.saveApps();
-                this.drawApps();
-                this.toast('已删除');
+        el.innerHTML = this.appList.map(a => this.rowHtml(a)).join('');
+        this.bindRows(el);
+        this.applyFilter();
+    }
+
+    /* 关键字过滤只切显隐，不重建 DOM */
+    applyFilter() {
+        const el = document.getElementById('app-list');
+        if (!el || !this.appList.length) return;
+        let visible = 0;
+        for (let i = 0; i < this.appList.length; i++) {
+            const a = this.appList[i];
+            const row = this.rowMap.get(a.pkg);
+            if (!row) continue;
+            const show = this.matchKeyword(a);
+            const want = show ? '' : 'none';
+            if (row.style.display !== want) row.style.display = want;
+            if (show) visible++;
+        }
+        let note = el.querySelector('.empty-state');
+        if (!visible) {
+            if (!note) {
+                note = document.createElement('div');
+                note.className = 'empty-state';
+                note.textContent = '没有匹配的应用';
+                el.appendChild(note);
+            }
+        } else if (note) {
+            note.remove();
+        }
+    }
+
+    /* 列表顺序变化后把单个行挪到新位置（保留节点与事件监听） */
+    placeRow(a) {
+        const el = document.getElementById('app-list');
+        if (!el) return;
+        const row = this.rowMap.get(a.pkg);
+        if (!row) return;
+        const idx = this.appList.indexOf(a);
+        let anchor = null;
+        for (let i = idx + 1; i < this.appList.length && !anchor; i++) {
+            anchor = this.rowMap.get(this.appList[i].pkg) || null;
+        }
+        el.insertBefore(row, anchor);
+        this.applyFilter();
+    }
+
+    bindRows(el) {
+        this.rowMap = new Map();
+        el.querySelectorAll('.app-row').forEach(row => {
+            const pkg = row.dataset.pkg;
+            this.rowMap.set(pkg, row);
+            row.addEventListener('click', e => {
+                if (e.target.closest && e.target.closest('.ui-switch')) return;
+                this.vibrate(8);
+                this.openSheet(pkg);
+            });
+            const sw = row.querySelector('[data-role=switch]');
+            sw?.addEventListener('change', e => {
+                e.stopPropagation();
+                this.setAppOn(pkg, !!e.target.checked);
             });
         });
+    }
+
+
+    patchRow(a) {
+        const row = this.rowMap && this.rowMap.get(a.pkg);
+        if (!row) return false;
+        if (row.classList.contains('is-on') !== !!a.on) row.classList.toggle('is-on', !!a.on);
+        const nm = row.querySelector('.app-name');
+        if (nm) {
+            const t = a.name || this.pkgLabel(a.pkg);
+            if (nm.textContent !== t) nm.textContent = t;
+        }
+        const sub = row.querySelector('[data-role=sub]');
+        if (sub) {
+            const t = this.appSub(a);
+            if (sub.dataset.h !== t) { sub.dataset.h = t; sub.innerHTML = t; }
+        }
+        const sw = row.querySelector('[data-role=switch]');
+        if (sw && sw.checked !== !!a.on) sw.checked = !!a.on;
+        return true;
+    }
+
+    async setAppOn(pkg, on) {
+        const a = this.findApp(pkg);
+        if (!a) return;
+        if (on && a.id == null) {
+            const d = this.defaultRateId();
+            if (d == null) {
+                this.toast('请先在「设置」页全量扫描档位');
+                this.patchRow(a);
+                return;
+            }
+            a.id = d;
+        }
+        a.on = on;
+        this.commitRules();
+        await this.saveApps();
+        this.vibrate(10);
+        this.toast(on ? `已启用 ${a.name || pkg}` : `已停用 ${a.name || pkg}`);
+        this.sortAppList();
+        this.placeRow(a);
+        this.patchRow(a);
+    }
+
+    async reloadAppList() {
+        await this.loadApps();
+        this.drawApps();
     }
 
     updInfo() {
@@ -737,40 +1003,116 @@ class AstraEngine {
 
     /* ============ 弹层 ============ */
 
-    showInput() {
-        document.getElementById('app-input-modal').classList.add('show');
-        document.getElementById('app-package').value = '';
-        document.getElementById('app-rate-id').value = '';
-        setTimeout(() => document.getElementById('app-package').focus(), 350);
+    /* ============ 应用档位配置弹层 ============ */
+
+    openSheet(pkg) {
+        if (!this.rates.length) {
+            this.toast('请先在「设置」页全量扫描档位');
+            this.page('settings');
+            return;
+        }
+        const a = this.findApp(pkg);
+        if (!a) return;
+        this.sheetPkg = pkg;
+        const name = document.getElementById('sheet-app-name');
+        const sub = document.getElementById('sheet-app-sub');
+        const icon = document.getElementById('sheet-app-icon');
+        const rm = document.getElementById('sheet-remove');
+        if (name) name.textContent = a.name || this.pkgLabel(a.pkg);
+        if (sub) sub.textContent = a.pkg;
+        if (icon) icon.innerHTML = this.appAvatar(a);
+        if (rm) rm.style.display = a.id == null ? 'none' : '';
+        this.renderSheetOptions();
+        document.getElementById('app-sheet').classList.add('show');
+        this.lockScroll(true);
     }
 
-    hideInput() { document.getElementById('app-input-modal').classList.remove('show'); }
+    closeSheet() {
+        document.getElementById('app-sheet').classList.remove('show');
+        this.lockScroll(false);
+        this.sheetPkg = '';
+    }
 
-    async addApp() {
-        const pkg = document.getElementById('app-package').value.trim();
-        const id = document.getElementById('app-rate-id').value.trim();
-        if (!pkg || !id) { this.toast('请填写完整信息'); return; }
-        if (!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)+$/.test(pkg)) { this.toast('包名格式不正确'); return; }
-        if (!/^[0-9]+$/.test(id)) { this.toast('刷新率ID必须为数字'); return; }
-        const idx = this.apps.findIndex(x => x.pkg === pkg);
-        if (idx >= 0) this.apps[idx].id = id;
-        else this.apps.push({ pkg, id });
-        await this.saveApps();
-        this.drawApps();
-        this.hideInput();
+    renderSheetOptions() {
+        const el = document.getElementById('sheet-rate-list');
+        if (!el) return;
+        const a = this.findApp(this.sheetPkg);
+        const sel = a ? a.id : null;
+        const groups = [];
+        const byRes = new Map();
+        // 按 this.rates 原始顺序分组，保证与首页档位列表顺序一致
+        this.rates.forEach(r => {
+            const key = `${r.w}x${r.h}`;
+            if (!byRes.has(key)) { byRes.set(key, []); groups.push(key); }
+            byRes.get(key).push(r);
+        });
+        const multi = groups.length > 1;
+        el.innerHTML = groups.map(key => `
+            ${multi ? `<div class="rate-group-label">${this.escapeHtml(key.replace('x', ' × '))}</div>` : ''}
+            ${byRes.get(key).map(r => `
+                <div class="rate-opt${sel === r.id ? ' active' : ''}" data-id="${r.id}">
+                    <div class="rate-opt-left">
+                        <span class="rate-opt-fps">${r.fps}Hz</span>
+                        <span class="rate-type-tag${r.type === 'overclock' ? ' overclock' : ''}">${r.type === 'overclock' ? '超频' : '原生'}</span>
+                    </div>
+                    <span class="rate-opt-meta">${multi ? this.escapeHtml(r.w + ' × ' + r.h) : 'ID ' + r.id}</span>
+                </div>`).join('')}
+        `).join('');
+        el.querySelectorAll('.rate-opt').forEach(o => {
+            o.addEventListener('click', e => this.pickRate(parseInt(e.currentTarget.dataset.id, 10)));
+        });
+    }
+
+    async pickRate(id) {
+        const a = this.findApp(this.sheetPkg);
+        if (!a) return;
+        a.id = id;
+        a.on = true;
+        this.commitRules();
+        if (await this.saveApps()) {
+            const r = this.rateOf(id);
+            this.toast(`已设置 ${a.name || a.pkg} → ${r ? r.fps + 'Hz' : 'ID ' + id}`);
+        }
+        this.closeSheet();
         this.vibrate(15);
-        this.toast('配置已添加');
+        this.sortAppList();
+        this.placeRow(a);
+        this.patchRow(a);
+    }
+
+    async removeRule() {
+        const a = this.findApp(this.sheetPkg);
+        if (!a) return;
+        a.id = null;
+        a.on = false;
+        this.apps = this.apps.filter(x => x.pkg !== a.pkg);
+        this.commitRules();
+        await this.saveApps();
+        this.closeSheet();
+        this.vibrate(10);
+        this.toast('已移除该应用的配置');
+        this.sortAppList();
+        this.placeRow(a);
+        this.patchRow(a);
+    }
+
+    /* 弹层打开时锁住背景滚动。overscroll-behavior 只能断连锁滚动，
+       背景自身的滚动位置仍会被惯性带动，所以这里直接固定 overflow。 */
+    lockScroll(on) {
+        document.documentElement.classList.toggle('no-scroll', !!on);
     }
 
     confirm(title, msg, cb) {
         document.getElementById('confirm-title').textContent = title;
         document.getElementById('confirm-message').textContent = msg;
         document.getElementById('confirm-modal').classList.add('show');
+        this.lockScroll(true);
         const ok = document.getElementById('confirm-ok');
         const nok = ok.cloneNode(true);
         ok.parentNode.replaceChild(nok, ok);
         nok.addEventListener('click', () => {
             document.getElementById('confirm-modal').classList.remove('show');
+            this.lockScroll(false);
             cb();
         });
     }

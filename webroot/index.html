@@ -55,13 +55,24 @@
             <div class="glass-card app-list-card anim-in">
                 <div class="card-header">
                     <span class="card-title">应用列表</span>
-                    <button class="card-action accent" id="add-app-config">添加</button>
+                    <div class="card-inline">
+                        <span class="card-inline-label">系统应用</span>
+                        <label class="ui-switch ui-switch-sm">
+                            <input type="checkbox" id="app-include-system">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
                 </div>
-                <div class="scan-desc">
-                    <p>填包名 + 刷新率ID，打开应用会自动切换到对应档位</p>
+                <div class="app-search">
+                    <svg class="app-search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z" fill="currentColor"/></svg>
+                    <input type="search" class="app-search-input" id="app-search" placeholder="搜索应用名或包名" autocomplete="off" autocorrect="off" spellcheck="false">
+                    <button class="app-search-clear" id="app-search-clear" aria-label="清空搜索">×</button>
                 </div>
                 <div class="app-config-scroll">
-                    <div class="app-config-list" id="app-config-list"></div>
+                    <div class="app-list" id="app-list"></div>
+                </div>
+                <div class="scan-desc">
+                    <p>打开开关即按所选档位切换，关闭即不启用；点击一行可调整档位</p>
                 </div>
             </div>
         </div>
@@ -136,8 +147,8 @@
                     <button class="card-action danger" id="scan-rates">全量扫描</button>
                 </div>
                 <div class="scan-desc">
-                    <p>首次使用必须先点击「全量扫描」</p>
-                    <p>扫描你设备支持的所有刷新率档位</p>
+                    <p>扫描设备支持的所有刷新率档位</p>
+                    <p>结果会自动保存，下次打开无需重新扫描</p>
                 </div>
             </div>
 
@@ -198,18 +209,24 @@
         </nav>
     </div>
 
-    <!-- ============ 添加应用 · 底部弹层 ============ -->
-    <div class="sheet-backdrop" id="app-input-modal">
-        <div class="sheet-panel">
+    <!-- ============ 应用档位配置 · 居中弹层 ============ -->
+    <div class="sheet-backdrop" id="app-sheet">
+        <div class="sheet-panel sheet-app">
             <div class="sheet-grabber"></div>
-            <div class="sheet-title">添加应用配置</div>
-            <div class="input-group">
-                <input type="text" class="ui-input" id="app-package" placeholder="包名 (如: com.tencent.tmgp.sgame)" autocomplete="off">
-                <input type="number" class="ui-input" id="app-rate-id" placeholder="刷新率ID (如: 4)" inputmode="numeric">
+            <div class="sheet-app-head">
+                <div class="app-icon sheet-app-icon" id="sheet-app-icon"></div>
+                <div class="sheet-app-text">
+                    <div class="sheet-app-name" id="sheet-app-name">应用</div>
+                    <div class="sheet-app-sub" id="sheet-app-sub"></div>
+                </div>
+            </div>
+            <div class="sheet-section">刷新率档位</div>
+            <div class="sheet-rate-scroll">
+                <div class="rate-opt-list" id="sheet-rate-list"></div>
             </div>
             <div class="sheet-actions">
-                <button class="sheet-btn ghost" id="input-cancel">取消</button>
-                <button class="sheet-btn primary" id="input-done">完成</button>
+                <button class="sheet-btn ghost" id="sheet-remove">移除配置</button>
+                <button class="sheet-btn primary" id="sheet-close">完成</button>
             </div>
         </div>
     </div>

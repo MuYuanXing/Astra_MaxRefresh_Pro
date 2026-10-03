@@ -157,9 +157,9 @@ button {
 
 /* 主题切换：只过渡文字/描边，玻璃背景瞬时切换避免重模糊卡顿 */
 .glass-card, .ui-tabbar, .rate-item, .rate-setting-item,
-.config-item, .ui-input, .order-input, .sheet-panel, .alert-panel,
+.app-row, .rate-opt, .app-search, .order-input, .sheet-panel, .alert-panel,
 .app-config-scroll, .guide, .hero-chip, .type-btn, .info-note, .theme-seg {
-    transition: color 200ms ease, border-color 200ms ease;
+    transition: color 200ms ease, border-color 200ms ease, background 200ms ease;
 }
 
 /* ---------- 背景：极光 + 动态流光 + 星空 ---------- */
@@ -301,6 +301,21 @@ button {
 .ui-content.hidden { display: none; }
 
 .ui-content.entering { animation: page-enter var(--dur-med) var(--spring); }
+
+/* 弹层打开时锁住页面滚动（scroll 由 lockScroll() 切换）
+   弹层内部的 .sheet-rate-scroll 要排除在外，它仍需可滚 */
+html.no-scroll,
+html.no-scroll body {
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+html.no-scroll .ui-content,
+html.no-scroll .app-config-scroll,
+html.no-scroll .rate-settings-list {
+    overflow: hidden;
+    touch-action: none;
+}
 
 @keyframes page-enter {
     from { opacity: 0; transform: translateY(14px) scale(0.99); }
@@ -843,47 +858,130 @@ button {
 
 .app-config-scroll::-webkit-scrollbar { display: none; }
 
-.app-config-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.app-list { display: flex; flex-direction: column; gap: var(--space-2); }
 
-.config-item {
+.app-row {
     display: flex;
     align-items: center;
-    min-height: 52px;
-    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+    min-height: 60px;
+    padding: var(--space-2) var(--space-3);
     background: var(--fill);
     border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--spring), background var(--dur-fast);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
 }
 
-.config-pkg {
-    flex: 1;
-    font-size: 13.5px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+.app-row:active { transform: scale(0.985); }
+
+.app-row.is-on {
+    background: var(--green-soft);
+    box-shadow: inset 0 0 0 1px var(--green-border);
+}
+
+.app-icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--fill-strong);
+}
+
+.app-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.app-avatar {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    line-height: 1;
+}
+
+.app-main { flex: 1; min-width: 0; }
+
+.app-name {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin-right: var(--space-3);
 }
 
-.config-id {
-    font-size: 13px;
-    color: var(--accent);
-    font-weight: 700;
-    margin-right: var(--space-4);
+.app-sub {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
 
-.config-delete {
-    font-size: 13px;
-    color: var(--red);
-    cursor: pointer;
-    font-weight: 600;
-    white-space: nowrap;
-    padding: 6px 4px;
-    transition: transform var(--dur-fast) var(--spring);
+.app-row.is-on .app-name { color: var(--green); }
+
+/* ---------- 应用搜索 ---------- */
+.app-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: var(--fill);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-3);
+    height: 44px;
+    margin-bottom: var(--space-3);
 }
 
-.config-delete:active { transform: scale(0.9); }
+.app-search:focus-within { background: var(--fill-strong); }
+
+.app-search-icon { width: 18px; height: 18px; flex: 0 0 auto; color: var(--text-tertiary); }
+
+.app-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    background: none;
+    border: none;
+    outline: none;
+    font-size: 15px;
+    color: var(--text-primary);
+}
+
+.app-search-input::placeholder { color: var(--text-tertiary); }
+.app-search-input::-webkit-search-cancel-button { display: none; }
+
+.app-search-clear {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--switch-off);
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.app-search.has-text .app-search-clear { display: flex; }
+
+/* ---------- 卡片内的小开关 ---------- */
+.card-inline { display: flex; align-items: center; gap: var(--space-2); }
+
+.card-inline-label { font-size: 13px; color: var(--text-secondary); }
+
+.ui-switch-sm { width: 44px; height: 26px; }
+
+.ui-switch-sm .slider::before { height: 20px; width: 20px; left: 3px; top: 3px; }
+
+.ui-switch-sm input:checked + .slider::before { transform: translateX(18px); }
 
 .empty-state {
     text-align: center;
@@ -959,6 +1057,8 @@ button {
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--dur-med) ease;
+    /* 弹层打开时禁止背景跟着一起滑 */
+    overscroll-behavior: contain;
 }
 
 .sheet-backdrop.show { opacity: 1; pointer-events: auto; }
@@ -977,39 +1077,14 @@ button {
         inset 0 1px 0 var(--rim-top);
     transform: scale(0.88);
     transition: transform var(--dur-med) var(--spring-bounce);
+    /* 弹层自身不滚，滚动交给内部列表；overscroll 断开避免连锁滚到背景 */
+    overscroll-behavior: contain;
+    touch-action: auto;
 }
 
 .sheet-backdrop.show .sheet-panel { transform: scale(1); }
 
 .sheet-grabber { display: none; }
-
-.sheet-title {
-    font-size: 17px;
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: var(--space-5);
-}
-
-.input-group { display: flex; flex-direction: column; gap: var(--space-3); }
-
-.ui-input {
-    width: 100%;
-    padding: 15px 18px;
-    background: var(--fill);
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: 16px;
-    color: var(--text-primary);
-    outline: none;
-    transition: box-shadow var(--dur-fast), background var(--dur-fast);
-}
-
-.ui-input::placeholder { color: var(--text-tertiary); }
-
-.ui-input:focus {
-    background: var(--fill-strong);
-    box-shadow: 0 0 0 2px var(--accent);
-}
 
 .sheet-actions {
     display: flex;
@@ -1040,6 +1115,93 @@ button {
     box-shadow: 0 6px 20px rgba(0, 122, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
+/* ---------- 应用档位配置弹层 ---------- */
+.sheet-app { max-width: 380px; }
+
+.sheet-app-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.sheet-app-icon { width: 48px; height: 48px; }
+
+.sheet-app-text { flex: 1; min-width: 0; }
+
+.sheet-app-name {
+    font-size: 17px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sheet-app-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+}
+
+.sheet-section {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-2);
+}
+
+.sheet-rate-scroll {
+    max-height: 46vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    /* 滚到列表边界时不要把滚动传给背景页面 */
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+
+.sheet-rate-scroll::-webkit-scrollbar { display: none; }
+
+.rate-opt-list { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.rate-opt {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 52px;
+    padding: var(--space-2) var(--space-4);
+    background: var(--fill);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--spring), background var(--dur-fast), box-shadow var(--dur-fast);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+.rate-opt:active { transform: scale(0.98); }
+
+.rate-opt.active {
+    background: var(--accent);
+    box-shadow: 0 6px 20px rgba(0, 122, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    color: #fff;
+}
+
+.rate-opt-left { display: flex; align-items: center; gap: 10px; }
+
+.rate-opt-fps { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.rate-opt-meta { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+.rate-opt.active .rate-opt-fps,
+.rate-opt.active .rate-opt-meta { color: #fff; }
+
+.rate-opt.active .rate-type-tag { background: rgba(255, 255, 255, 0.25); color: #fff; }
+
 /* ---------- 确认弹窗 ---------- */
 .alert-backdrop {
     position: fixed;
@@ -1052,6 +1214,7 @@ button {
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--dur-med) ease;
+    overscroll-behavior: contain;
 }
 
 .alert-backdrop.show { opacity: 1; pointer-events: auto; }
@@ -1069,6 +1232,8 @@ button {
     overflow: hidden;
     transform: scale(0.88);
     transition: transform var(--dur-med) var(--spring-bounce);
+    overscroll-behavior: contain;
+    touch-action: auto;
 }
 
 .alert-backdrop.show .alert-panel { transform: scale(1); }
@@ -1166,4 +1331,22 @@ button {
         transition-duration: 0.01ms !important;
     }
     .orb, .flow, .star-layer { animation: none; }
+}
+
+/* ---------- 列表滚动性能 ----------
+   backdrop-filter 每帧都要重采样背后内容，列表长卡片逐帧高斯模糊必然掉帧。
+   注意：不能用 backdrop-filter:none 覆盖 —— 压缩器会删掉初始值的标准属性
+   只留 -webkit- 前缀（Chromium 已移除该别名），覆盖会失效。
+   列表卡本身不挂毛玻璃（.app-list-card 单独关掉），模糊由外层卡片提供。 */
+.app-list-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--panel-tint);
+}
+
+/* 跳过视口外卡片的布局/绘制，contain-intrinsic-size 记录实际高度 */
+.app-row {
+    contain: layout style paint;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 60px;
 }
