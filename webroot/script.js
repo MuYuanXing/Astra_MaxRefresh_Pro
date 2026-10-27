@@ -16,7 +16,7 @@ class AstraEngine {
         this.init();
     }
 
-    /* ============ 主题管理（跟随系统默认 / 浅色 / 深色） ============ */
+    
 
     initTheme() {
         const mode = this.themeMode();
@@ -44,7 +44,7 @@ class AstraEngine {
         });
     }
 
-    /* ============ 动画等级（高 / 中 / 低） ============ */
+    
 
     initMotion() { this.applyMotion(this.motionLevel()); }
 
@@ -61,7 +61,7 @@ class AstraEngine {
         });
     }
 
-    /* ============ 工具方法 ============ */
+    
 
     cleanStr(v) { return String(v ?? '').trim(); }
 
@@ -173,10 +173,10 @@ class AstraEngine {
     }
 
     vibrate(ms = 10) {
-        try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* ignore */ }
+        try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {  }
     }
 
-    /* ============ KernelSU 执行层 ============ */
+    
 
     async execFull(cmd, timeoutMs = 8000) {
         return new Promise(resolve => {
@@ -185,7 +185,7 @@ class AstraEngine {
             const finish = (res) => {
                 if (done) return;
                 done = true;
-                try { delete window[cb]; } catch (e) { /* ignore */ }
+                try { delete window[cb]; } catch (e) {  }
                 resolve(res);
             };
             const tm = setTimeout(() => {
@@ -221,7 +221,7 @@ class AstraEngine {
 
     async writeFile(path, content, timeoutMs = 8000) {
         const b64 = this.b64EncodeUtf8(content);
-        const script = 'umask 022; printf %s \"$1\" | /system/bin/base64 -d > \"$2\"';
+        const script = 'umask 022; printf %s \"$1\" | /system/bin/base64 -d > \"$2.tmp\" && /system/bin/mv -f \"$2.tmp\" \"$2\"';
         const cmd = `/system/bin/sh -c ${this.shQuote(script)} sh ${this.shQuote(b64)} ${this.shQuote(path)}`;
         return await this.execFull(cmd, timeoutMs);
     }
@@ -233,7 +233,7 @@ class AstraEngine {
         return this.ltpoMode || '未知';
     }
 
-    /* ============ 初始化 ============ */
+    
 
     async init() {
         this.loadModuleInfo();
@@ -241,6 +241,7 @@ class AstraEngine {
         await this.loadRates();
         await this.loadConf();
         await this.loadApps();
+        await this.loadState();
         this.render();
         this.bindEv();
         this.applyModeUi();
@@ -300,7 +301,7 @@ class AstraEngine {
         });
     }
 
-    /* ============ 数据加载 ============ */
+    
 
     async loadLtpoMode() {
         try {
@@ -334,21 +335,44 @@ class AstraEngine {
         }
     }
 
+    parseKv(c) {
+        const o = {};
+        (c || '').split('\n').forEach(l => {
+            const i = l.indexOf('=');
+            if (i > 0) o[l.slice(0, i).trim()] = l.slice(i + 1).trim();
+        });
+        return o;
+    }
+
     async loadConf() {
-        try {
-            const c = await this.readFile(`${this.mod}/config.json`);
-            if (c) {
-                const p = JSON.parse(c);
-                if (p.globalRateId !== undefined) this.conf.rateId = p.globalRateId;
-                if (p.appSwitchEnabled !== undefined) this.conf.appSw = p.appSwitchEnabled;
-                if (p.appSwitchInterval !== undefined) this.conf.appIntv = p.appSwitchInterval;
-            }
-        } catch (e) { console.warn(e); }
+        const o = this.parseKv(await this.readFile(`${this.pdir}/settings.conf`));
+        this.conf.rateId = /^\d+$/.test(o.global_id || '') ? parseInt(o.global_id) : null;
+        this.conf.appSw = o.app_switch !== '0';
+        const iv = parseInt(o.app_interval);
+        this.conf.appIntv = iv >= 1 ? iv : 1;
+    }
+
+    async loadState() {
+        const o = this.parseKv(await this.readFile(`${this.pdir}/state.conf`));
+        this.curId = /^\d+$/.test(o.cur_id || '') ? parseInt(o.cur_id) : null;
+    }
+
+    async saveConf() {
+        const c = `global_id=${this.conf.rateId ?? ''}\napp_switch=${this.conf.appSw ? 1 : 0}\napp_interval=${this.conf.appIntv}\n`;
+        const res = await this.writeFile(`${this.pdir}/settings.conf`, c);
+        if (res.errno !== 0) { this.toastErr('保存', res); return false; }
+        return await this.bump();
+    }
+
+    async bump() {
+        const res = await this.writeFile(`${this.pdir}/rev`, String(Date.now()));
+        if (res.errno !== 0) { this.toastErr('通知后台', res); return false; }
+        return true;
     }
 
     async loadRates() {
         try {
-            const c = await this.readFile(`${this.mod}/rates.conf`);
+            const c = await this.readFile(`${this.pdir}/rates.conf`);
             this.rates = [];
             if (!c) return;
             c.split('\n').forEach(l => {
@@ -364,27 +388,19 @@ class AstraEngine {
         } catch (e) { console.warn(e); }
     }
 
-    /* ============ 扫描与保存 ============ */
+    
 
     async scan() {
         this.toast('正在扫描档位...');
-        const raw = await this.execOut(`/system/bin/dumpsys SurfaceFlinger 2>/dev/null | /system/bin/grep 'id=[0-9]*, hwcId='`, 15000);
+        const raw = await this.execOut(`/system/bin/sh ${this.shQuote(`${this.mod}/astra.sh`)} scan`, 15000);
         if (!raw) {
             this.toast('扫描失败：未读取到档位信息');
             return;
         }
-        const map = new Map();
-        raw.split('\n').filter(l => l.trim()).forEach(l => {
-            const id = l.match(/id=(\d+),/)?.[1];
-            const res = l.match(/resolution=(\d+)x(\d+)/);
-            const rate = l.match(/(?:vsyncRate|refreshRate)=([0-9.]+)/)?.[1];
-            if (id && res && rate && !map.has(id)) {
-                map.set(id, { id: parseInt(id), w: res[1], h: res[2], fps: Math.round(parseFloat(rate)) });
-            }
-        });
-        const arr = Array.from(map.values());
-        arr.sort((a, b) => a.fps !== b.fps ? a.fps - b.fps : parseInt(a.w) - parseInt(b.w));
-        this.rates = arr.map(r => ({ ...r, type: 'native', base: false, ord: 0 }));
+        this.rates = raw.split('\n').map(l => l.trim().split(':')).filter(p => p.length >= 7).map(p => ({
+            id: parseInt(p[0]), w: p[1], h: p[2], fps: parseInt(p[3]),
+            type: p[4], base: p[5] === '1', ord: parseInt(p[6]) || 0
+        }));
         this.drawSettings();
         this.drawSelector();
         this.vibrate(15);
@@ -396,14 +412,21 @@ class AstraEngine {
             this.toast('请为所有超频档位填写切换顺序(从1开始)');
             return;
         }
-        if (!this.rates.some(r => r.base)) {
-            this.toast('请至少设置一个原生基准');
+        const noBase = [...new Set(this.rates.filter(r => r.type === 'overclock').map(r => `${r.w}x${r.h}`))]
+            .filter(k => !this.rates.some(r => r.base && r.type === 'native' && `${r.w}x${r.h}` === k));
+        if (noBase.length) {
+            this.toast(`请为 ${noBase.join('、')} 设置原生基准`);
+            return;
+        }
+        const dup = this.rates.filter(r => r.type === 'overclock').some((r, _, a) => a.some(x => x !== r && x.ord === r.ord && x.w === r.w && x.h === r.h));
+        if (dup) {
+            this.toast('同一分辨率的超频档切换顺序不能重复');
             return;
         }
         const lines = this.rates.map(r => `${r.id}:${r.w}:${r.h}:${r.fps}:${r.type}:${r.base ? '1' : '0'}:${r.ord || 0}`);
-        const res = await this.writeFile(`${this.mod}/rates.conf`, `${lines.join('\n')}`);
+        const res = await this.writeFile(`${this.pdir}/rates.conf`, `${lines.join('\n')}\n`);
         if (res.errno !== 0) { this.toastErr('保存', res); return; }
-        await this.sync();
+        if (!(await this.bump())) return;
         this.updInfo();
         this.drawSelector();
         this.vibrate(15);
@@ -416,85 +439,20 @@ class AstraEngine {
         if (!el) { this.toast('请选择刷新率'); return; }
         const id = parseInt(el.dataset.id);
         this.conf.rateId = id;
-        const obj = { globalRateId: id, appSwitchEnabled: this.conf.appSw, appSwitchInterval: this.conf.appIntv };
-        const res = await this.writeFile(`${this.mod}/config.json`, JSON.stringify(obj));
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
-        await this.sync();
+        if (!(await this.saveConf())) return;
         const r = this.rates.find(x => x.id === id);
-        await this.apply(id);
         this.updInfo();
         this.vibrate(15);
         this.toast(`已保存: ${r?.fps || id}Hz (ID:${id})`);
     }
 
-    /* ============ 刷率切换链（核心逻辑，勿动） ============ */
-
     rateOf(id) { return this.rates.find(r => r.id === id) || null; }
 
-    nativeFor(res) {
-        const n = this.rates.find(r => `${r.w}x${r.h}` === res && r.base);
-        return n ? n.id : 1;
-    }
-
-    ocUp(res, to) { return this.ocRange(res, 0, to); }
-
-    ocDown(res, from) { return this.ocRange(res, from, 0); }
-
-    ocRange(res, from, to) {
-        if (from < to) {
-            return this.rates.filter(r => `${r.w}x${r.h}` === res && r.type === 'overclock' && r.ord > from && r.ord <= to)
-                .sort((a, b) => a.ord - b.ord).map(r => r.id);
-        }
-        return this.rates.filter(r => `${r.w}x${r.h}` === res && r.type === 'overclock' && r.ord < from && r.ord >= to)
-            .sort((a, b) => b.ord - a.ord).map(r => r.id);
-    }
-
-    async apply(tid) {
-        if (tid === this.curId) return;
-        const t = this.rateOf(tid);
-        if (!t) {
-            await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${tid}`, 8000);
-            this.curId = tid;
-            return;
-        }
-        await this.execOut('/system/bin/settings put system peak_refresh_rate 240.0', 8000);
-        await this.execOut('/system/bin/settings put system min_refresh_rate 10.0', 8000);
-
-        const tt = t.type, tr = `${t.w}x${t.h}`, to = t.ord || 0;
-        const c = this.rateOf(this.curId);
-        const ct = c?.type, cr = c ? `${c.w}x${c.h}` : null, co = c?.ord || 0;
-
-        if (!tt || tt === 'native') {
-            if (ct === 'overclock' && this.curId) {
-                for (const i of this.ocDown(cr, co)) await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${i}`, 8000);
-                await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${this.nativeFor(cr)}`, 8000);
-            }
-            await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${tid}`, 8000);
-            this.curId = tid;
-            return;
-        }
-
-        if (tt === 'overclock') {
-            const tn = this.nativeFor(tr);
-            if (ct === 'overclock' && cr === tr && this.curId) {
-                for (const i of this.ocRange(tr, co, to)) await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${i}`, 8000);
-            } else {
-                if (ct === 'overclock' && this.curId) {
-                    for (const i of this.ocDown(cr, co)) await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${i}`, 8000);
-                    await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${this.nativeFor(cr)}`, 8000);
-                }
-                await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${tn}`, 8000);
-                for (const i of this.ocUp(tr, to)) await this.execOut(`/system/bin/service call SurfaceFlinger 1035 i32 ${i}`, 8000);
-            }
-        }
-        this.curId = tid;
-    }
-
-    /* ============ 应用配置 ============ */
+    
 
     async loadApps() {
         try {
-            const c = await this.readFile(`${this.mod}/apps.conf`);
+            const c = await this.readFile(`${this.pdir}/apps.conf`);
             this.apps = (c || '').split('\n').filter(l => l.includes('=')).map(l => {
                 const [p, i] = l.split('=');
                 return { pkg: p.trim(), id: i.trim() };
@@ -504,18 +462,12 @@ class AstraEngine {
 
     async saveApps() {
         const c = this.apps.map(x => `${x.pkg}=${x.id}`).join('\n');
-        const res = await this.writeFile(`${this.mod}/apps.conf`, c);
+        const res = await this.writeFile(`${this.pdir}/apps.conf`, c ? `${c}\n` : '');
         if (res.errno !== 0) { this.toastErr('保存', res); return; }
-        await this.sync();
+        await this.bump();
     }
 
-    async sync() {
-        const p = this.shQuote(this.pdir);
-        const m = this.shQuote(this.mod);
-        await this.execOut(`/system/bin/mkdir -p ${p} && /system/bin/cp -af ${m}/config.json ${m}/apps.conf ${m}/rates.conf ${p}/ 2>/dev/null`, 8000);
-    }
-
-    /* ============ 渲染层 ============ */
+    
 
     render() {
         this.drawSelector();
@@ -536,8 +488,6 @@ class AstraEngine {
         const note = document.getElementById('rate-note');
         if (!this.rates.length) { el.innerHTML = ''; note.style.display = 'block'; return; }
         note.style.display = 'none';
-
-        // 按分辨率分组
         const groups = [];
         const seen = new Map();
         this.rates.forEach(r => {
@@ -584,7 +534,7 @@ class AstraEngine {
             <div class="rate-setting-item pop-in ${r.base ? 'is-base' : ''}" data-idx="${i}">
                 <div class="rate-setting-header">
                     <div class="rate-setting-info">
-                        <span class="rate-setting-fps">${r.fps}Hz</span>
+                        <span class="rate-setting-fps">${this.escapeHtml(r.fps)}Hz</span>
                         ${r.base ? '<span class="rate-setting-badge">基准</span>' : ''}
                     </div>
                     <div class="rate-setting-types">
@@ -592,7 +542,7 @@ class AstraEngine {
                         <span class="type-btn overclock ${r.type === 'overclock' ? 'active' : ''}" data-idx="${i}" data-type="overclock">超频</span>
                     </div>
                 </div>
-                <div class="rate-setting-meta">${r.w}x${r.h} · ID ${r.id}</div>
+                <div class="rate-setting-meta">${this.escapeHtml(r.w)}x${this.escapeHtml(r.h)} · ID ${this.escapeHtml(r.id)}</div>
                 <div class="rate-setting-action">
                     <div class="base-btn ${r.base ? 'is-base' : ''}" data-idx="${i}">
                         ${r.base ? '✓ 已设为该分辨率的原生基准' : '设为该分辨率的原生基准'}
@@ -601,7 +551,7 @@ class AstraEngine {
                 ${r.type === 'overclock' ? `
                     <div class="order-input-row">
                         <span class="order-label">切换顺序 <span class="required">*必填</span></span>
-                        <input type="number" class="order-input" data-idx="${i}" value="${r.ord || ''}" placeholder="必填" inputmode="numeric">
+                        <input type="number" class="order-input" data-idx="${i}" value="${this.escapeHtml(r.ord || '')}" placeholder="必填" inputmode="numeric">
                     </div>
                 ` : ''}
             </div>
@@ -614,6 +564,7 @@ class AstraEngine {
                 const i = parseInt(e.target.dataset.idx), t = e.target.dataset.type;
                 this.rates[i].type = t;
                 if (t === 'native') this.rates[i].ord = 0;
+                else this.rates[i].base = false;
                 this.drawSettings();
             });
         });
@@ -666,8 +617,6 @@ class AstraEngine {
         gid.textContent = (this.ltpoMode === 'keep') ? '不生效(保留LTPO)' : (this.conf.rateId || '未设置');
         const bs = this.rates.filter(r => r.base);
         nbase.textContent = bs.length ? bs.map(b => `${b.w}x${b.h}→ID:${b.id}`).join(', ') : '未设置';
-
-        // Hero 状态卡
         const valueEl = document.getElementById('hero-value');
         const fpsEl = document.getElementById('hero-fps');
         const unitEl = document.getElementById('hero-unit');
@@ -714,28 +663,25 @@ class AstraEngine {
         if (!Number.isFinite(interval) || interval < 1) { this.toast('轮询间隔至少为1秒'); return; }
         this.conf.appSw = enabled;
         this.conf.appIntv = interval;
-        const obj = { globalRateId: this.conf.rateId, appSwitchEnabled: this.conf.appSw, appSwitchInterval: this.conf.appIntv };
-        const res = await this.writeFile(`${this.mod}/config.json`, JSON.stringify(obj));
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
-        await this.sync();
+        if (!(await this.saveConf())) return;
         this.vibrate(15);
         this.toast('应用切换设置已保存');
     }
 
-    /* ============ 页面切换 ============ */
+    
 
     page(p) {
         document.querySelectorAll('.ui-content').forEach(x => x.classList.add('hidden'));
         const t = document.getElementById(`page-${p}`);
         if (!t) return;
         t.classList.remove('hidden', 'entering');
-        void t.offsetWidth; // 重启动画
+        void t.offsetWidth;
         t.classList.add('entering');
         document.querySelectorAll('.tab-item').forEach(x => x.classList.remove('active'));
         document.querySelector(`.tab-item[data-page="${p}"]`)?.classList.add('active');
     }
 
-    /* ============ 弹层 ============ */
+    
 
     showInput() {
         document.getElementById('app-input-modal').classList.add('show');

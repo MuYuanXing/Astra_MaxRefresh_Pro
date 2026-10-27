@@ -7,11 +7,7 @@ echo "    Astra_MaxRefresh_Pro 卸载程序"
 echo "========================================"
 echo ""
 
-echo "[*] 正在删除配置数据..."
-rm -rf "/data/adb/Astra_MaxRefresh_Pro_data"
-rm -rf /data/local/tmp/Astra_*
-echo "[✓] 配置数据已删除"
-echo ""
+. "$MODDIR/common.sh"
 
 mode=$(cat "$MODDIR/ltpo_mode" 2>/dev/null | tr -d '\r\n')
 [ -z "$mode" ] && mode="compat"
@@ -43,10 +39,17 @@ else
 fi
 
 echo "[*] 正在恢复刷新率设置..."
-settings delete system peak_refresh_rate 2>/dev/null
-settings delete system min_refresh_rate 2>/dev/null
-settings delete system user_refresh_rate 2>/dev/null
+if [ -f "$ORIG" ]; then
+    restore_orig
+else
+    settings delete system peak_refresh_rate 2>/dev/null
+    settings delete system min_refresh_rate 2>/dev/null
+fi
+rm -f "$STATE" "$REV"
 echo "[✓] 刷新率设置已恢复"
+echo ""
+echo "[*] 档位与应用配置已保留在 $DATA"
+echo "    重新安装后自动恢复；如需清除，请在管理界面中清除全部配置后再卸载"
 echo ""
 
 echo "========================================"

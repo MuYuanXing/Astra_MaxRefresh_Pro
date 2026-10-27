@@ -2,44 +2,50 @@
 SKIPUNZIP=1
 
 ui_print "- 解压模块文件..."
-unzip -o "$ZIPFILE" -d "$MODPATH" >&2
-
-rm -rf "$MODPATH/META-INF"
+unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || abort "解压失败，请检查存储空间后重新刷入"
+for f in service.sh common.sh astra.sh module.prop webroot/index.html; do
+    [ -f "$MODPATH/$f" ] || abort "安装包不完整（缺少 $f），请重新下载"
+done
 
 set_perm_recursive "$MODPATH" 0 0 0755 0644
 set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/post-fs-data.sh" 0 0 0755
 set_perm "$MODPATH/uninstall.sh" 0 0 0755
+set_perm "$MODPATH/astra.sh" 0 0 0755
 
 mod_name=$(grep -E '^name=' "$MODPATH/module.prop" | cut -d'=' -f2-)
 mod_ver=$(grep -E '^version=' "$MODPATH/module.prop" | cut -d'=' -f2-)
 
-old_moddir="/data/adb/modules/Astra_MaxRefresh_Pro"
-if [ -f "$old_moddir/module.prop" ]; then
-    old_vc=$(grep -E '^versionCode=' "$old_moddir/module.prop" | cut -d'=' -f2-)
+modid="Astra_MaxRefresh_Pro"
+pdir="/data/adb/${modid}_data"
+mkdir -p "$pdir"
+set_perm "$pdir" 0 0 0755
+
+old_id="Yuanxing_Stellar_MaxRefresh_Pro"
+old_moddir="/data/adb/modules/$old_id"
+if [ -f "$old_moddir/module.prop" ] && [ ! -f "$old_moddir/remove" ]; then
     old_ver=$(grep -E '^version=' "$old_moddir/module.prop" | cut -d'=' -f2-)
-    if [ -n "$old_vc" ] && [ "$old_vc" -lt 45 ] 2>/dev/null; then
-        ui_print " "
-        ui_print "============================================="
-        ui_print " "
-        ui_print "  ❌ 检测到旧版本 $old_ver (versionCode=$old_vc)"
-        ui_print " "
-        ui_print "  V4.5 不支持从旧版本直接覆盖安装！"
-        ui_print "  请按以下步骤操作："
-        ui_print " "
-        ui_print "  1) 进入以下路径执行使用 Root 权限执行卸载脚本："
-        ui_print "     $old_moddir/uninstall.sh"
-        ui_print " "
-        ui_print "  2) 在 Root 管理器中删除该模块"
-        ui_print " "
-        ui_print "  3) 重启手机"
-        ui_print " "
-        ui_print "  4) 重启后再重新刷入 V4.5"
-        ui_print " "
-        ui_print "============================================="
-        ui_print " "
-        abort "请先卸载旧版本再安装 V4.5"
+    if [ ! -s "$pdir/rates.conf" ]; then
+        for f in config.json apps.conf rates.conf; do
+            [ -f "/data/adb/${old_id}_data/$f" ] && cp -f "/data/adb/${old_id}_data/$f" "$pdir/$f"
+        done
     fi
+    ui_print " "
+    ui_print "============================================="
+    ui_print " "
+    ui_print "  ❌ 检测到旧版模块 星驰引擎 $old_ver"
+    ui_print " "
+    ui_print "  两个模块不能同时启用，请按以下步骤操作："
+    ui_print " "
+    ui_print "  1) 在 Root 管理器中删除旧版模块"
+    ui_print "  2) 重启手机"
+    ui_print "  3) 重新刷入 $mod_name $mod_ver"
+    ui_print " "
+    ui_print "  旧版的档位与应用配置已备份，重新刷入后自动恢复"
+    ui_print " "
+    ui_print "============================================="
+    ui_print " "
+    abort "请先卸载旧版模块"
 fi
 
 ui_print "============================================="
@@ -67,9 +73,9 @@ mfr=$(echo "$mfr" | tr '[:upper:]' '[:lower:]')
 ui_print "- 正在监测设备品牌..."
 
 ok=0
-echo "$brand" | grep -qiE "oneplus|oppo|realme|oplus" && ok=1
-[ "$ok" -eq 0 ] && echo "$mfr" | grep -qiE "oneplus|oppo|realme|oplus" && ok=1
-[ "$ok" -eq 0 ] && echo "$model" | grep -qiE "^PHK|^PH[A-Z]|^CPH|^RMX|^PJ[A-Z]|^PL[A-Z]|^OPD" && ok=1
+case "$brand" in oneplus|oppo|realme|oplus) ok=1 ;; esac
+case "$mfr" in oneplus|oppo|realme|oplus) ok=1 ;; esac
+case "$model" in PH[A-Z]*|CPH*|RMX*|PJ[A-Z]*|PL[A-Z]*|OPD*) ok=1 ;; esac
 
 if [ "$ok" -eq 0 ]; then
     ui_print " "
@@ -100,27 +106,11 @@ ui_print "• 内核版本: $kver"
 ui_print "• 系统版本: $romver"
 ui_print "---------------------------------------------"
 
-modid="Astra_MaxRefresh_Pro"
-pdir="/data/adb/${modid}_data"
-mkdir -p "$pdir"
-set_perm "$pdir" 0 0 0755
-
-[ -f "$pdir/config.json" ] && cp -f "$pdir/config.json" "$MODPATH/config.json"
-[ -f "$pdir/apps.conf" ] && cp -f "$pdir/apps.conf" "$MODPATH/apps.conf"
-[ -f "$pdir/rates.conf" ] && cp -f "$pdir/rates.conf" "$MODPATH/rates.conf"
-
-[ ! -f "$MODPATH/config.json" ] && echo '{}' > "$MODPATH/config.json"
-[ ! -f "$MODPATH/apps.conf" ] && touch "$MODPATH/apps.conf"
-[ ! -f "$MODPATH/rates.conf" ] && touch "$MODPATH/rates.conf"
-
-set_perm "$MODPATH/config.json" 0 0 0644
-set_perm "$MODPATH/apps.conf" 0 0 0644
-set_perm "$MODPATH/rates.conf" 0 0 0644
-
 waitkey() {
-    getevent -qt 1 >/dev/null 2>&1
-    while true; do
-        ev=$(getevent -lqc 1 2>/dev/null | {
+    command -v getevent >/dev/null 2>&1 || { echo none; return; }
+    end=$(($(date +%s) + 60))
+    while [ "$(date +%s)" -lt "$end" ]; do
+        ev=$(timeout 1 getevent -lqc 1 2>/dev/null | {
             while read -r line; do
                 case "$line" in
                     *KEY_VOLUMEDOWN*DOWN*) echo "down"; break ;;
@@ -130,8 +120,8 @@ waitkey() {
             done
         })
         [ -n "$ev" ] && echo "$ev" && return
-        usleep 30000
     done
+    echo timeout
 }
 
 ui_print "============================================="
@@ -148,9 +138,12 @@ ui_print " "
 ui_print "============================================="
 
 key=$(waitkey)
-if [ "$key" != "up" ]; then
-    abort "未阅读须知"
-fi
+case "$key" in
+    up) ;;
+    none) ui_print "- 当前环境无法读取按键，以下选项均使用默认值" ;;
+    timeout) abort "等待按键超时，请重新刷入" ;;
+    *) abort "未阅读须知" ;;
+esac
 
 ui_print "============================================="
 ui_print "- 请选择 LTPO 控制模式"
@@ -176,7 +169,6 @@ write_post_fs_data() {
     case "$1" in
         disable)
             cat > "$MODPATH/post-fs-data.sh" << 'PFEOF'
-#!/system/bin/sh
 MODDIR=${0%/*}
 
 resetprop -n persist.oplus.display.vrr 0
@@ -190,7 +182,6 @@ PFEOF
             ;;
         compat)
             cat > "$MODPATH/post-fs-data.sh" << 'PFEOF'
-#!/system/bin/sh
 MODDIR=${0%/*}
 
 resetprop -n ro.surface_flinger.use_content_detection_for_refresh_rate false
@@ -200,7 +191,6 @@ PFEOF
             ;;
         keep|*)
             cat > "$MODPATH/post-fs-data.sh" << 'PFEOF'
-#!/system/bin/sh
 MODDIR=${0%/*}
 PFEOF
             ;;
@@ -212,8 +202,6 @@ set_perm "$MODPATH/post-fs-data.sh" 0 0 0755
 
 echo "$ltpo" > "$MODPATH/ltpo_mode"
 set_perm "$MODPATH/ltpo_mode" 0 0 0644
-
-sleep 1
 
 ui_print "============================================="
 ui_print "- 监测完成，环境安全。"
@@ -247,13 +235,11 @@ else
     echo "description=${desc}" >> "$MODPATH/module.prop"
 fi
 
-sleep 1
 ui_print "- 已更新模块属性文件"
 
 if [ "$jump" = "true" ]; then
     boot=$("$GP" sys.boot_completed)
     if [ "$boot" = "1" ]; then
-        sleep 1
         ui_print "- 正在打开酷安..."
         am start -a android.intent.action.VIEW -d "http://www.coolapk.com/u/28719807" >/dev/null 2>&1
     fi
