@@ -3,7 +3,7 @@ MODDIR=${0%/*}
 
 echo ""
 echo "========================================"
-echo "    Astra_MaxRefresh_Pro 卸载程序"
+echo "    极速高刷 Astra_MaxRefresh_Pro 卸载程序"
 echo "========================================"
 echo ""
 

@@ -752,7 +752,7 @@ async function init() {
   renderRules();
   renderStatus();
   $('#set-ltpo').textContent = ltpoText();
-  $('#foot').textContent = `Astra MaxRefresh Pro${S.ver ? ` · ${S.ver}` : ''} · 穆远星`;
+  $('#foot').textContent = `极速高刷 Astra_MaxRefresh_Pro${S.ver ? ` · ${S.ver}` : ''} · 穆远星`;
   setNum(0);
   setGauge(S.lo, false);
   requestAnimationFrame(() => document.body.classList.add('ready'));

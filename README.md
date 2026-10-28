@@ -1,4 +1,4 @@
-# Astra_MaxRefresh_Pro
+# 极速高刷 Astra_MaxRefresh_Pro
 
 > **警告**：
 > 1. 操作前请务必确保自己拥有救砖能力。
@@ -7,7 +7,7 @@
 
 ## 简介
 
-Astra_MaxRefresh_Pro 是专为欧加（Oplus）系设备打造的高刷模块，支持原生刷新率与超频 DTBO 档位，可强制锁定所需的刷新率，无论在原生还是超频环境下，都能实现稳定高效的屏幕刷新控制。
+极速高刷 Astra_MaxRefresh_Pro 是专为欧加（Oplus）系设备打造的高刷模块，支持原生刷新率与超频 DTBO 档位，可强制锁定所需的刷新率，无论在原生还是超频环境下，都能实现稳定高效的屏幕刷新控制。
 
 ## 功能特性
 
@@ -33,7 +33,7 @@ Astra_MaxRefresh_Pro 是专为欧加（Oplus）系设备打造的高刷模块，
 
 ## 使用步骤
 
-1. 下载并刷入 Astra_MaxRefresh_Pro 模块（KernelSU，或 Magisk + KsuWebUI）。
+1. 下载并刷入 极速高刷 Astra_MaxRefresh_Pro 模块（KernelSU，或 Magisk + KsuWebUI）。
 2. 重启设备，模块将自动扫描并标注全部刷新率档位。
 3. 打开 WebUI，在「设置」页核对档位属性：超频档位需填写切换顺序，存在超频档位的分辨率需设置原生基准，然后保存。
 4. 在「主页」选择全局档位并保存，或在「应用」页按应用添加档位规则。

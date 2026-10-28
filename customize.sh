@@ -127,7 +127,7 @@ waitkey() {
 ui_print "============================================="
 ui_print "- 安装须知（必读）"
 ui_print " "
-ui_print "  1) 极速高刷Pro不支持除欧加真以外的机型，当你修改机型校验逻辑强行刷入后，遇到的BUG请勿向我反馈"
+ui_print "  1) 极速高刷 Astra_MaxRefresh_Pro不支持除欧加真以外的机型，当你修改机型校验逻辑强行刷入后，遇到的BUG请勿向我反馈"
 ui_print "  2) Alpha 及分支，请给「系统界面」与「系统桌面」Root 权限"
 ui_print "  3) KernelSU 及分支，请关闭「默认卸载模块」功能"
 ui_print "  4) 请勿与其它 “刷新率/VRR/LTPO” 类模块同时启用"
