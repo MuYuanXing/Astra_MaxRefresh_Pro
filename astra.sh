@@ -7,8 +7,8 @@ case "$1" in
         scan_rates
         ;;
     apps)
-        mkdir -p "$MODDIR/webroot/icons"
-        CLASSPATH="$MODDIR/bin/icons.dex" app_process /system/bin astra.Icons "$MODDIR/webroot/icons" 2>/dev/null
+        pm list packages -3 2>/dev/null | tr -d '\r' | sed -n 's/^package:\(.*\)$/\1 0/p'
+        pm list packages -s 2>/dev/null | tr -d '\r' | sed -n 's/^package:\(.*\)$/\1 1/p'
         ;;
     reset)
         rm -f "$SETTINGS" "$RATES" "$APPS" "$STATE" "$DATA/config.json"

@@ -7,7 +7,7 @@ const prop = fs.readFileSync(path.join(root, 'module.prop'), 'utf8');
 const ver = /^version=(.+)$/m.exec(prop)[1].trim();
 const files = [
   'META-INF', 'module.prop', 'customize.sh', 'service.sh', 'post-fs-data.sh', 'uninstall.sh', 'common.sh', 'astra.sh',
-  'bin/icons.dex', 'webroot/index.html', 'webroot/style.css', 'webroot/script.js', 'webroot/fonts', 'LICENSE',
+  'webroot/index.html', 'webroot/style.css', 'webroot/script.js', 'webroot/fonts', 'LICENSE',
 ];
 for (const f of files) if (!fs.existsSync(path.join(root, f))) throw new Error(`缺少文件：${f}`);
 for (const f of ['customize.sh', 'service.sh', 'post-fs-data.sh', 'uninstall.sh', 'common.sh', 'astra.sh', 'META-INF/com/google/android/update-binary']) {

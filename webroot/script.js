@@ -11,7 +11,8 @@ const resText = k => k.replace('x', ' × ');
 
 const S = {
   ltpo: '', ver: '', rates: [], rules: [],
-  conf: { rateId: null, appSw: true, appIntv: 1 },
+  conf: { rateId: null, appSw: true, appIntv: 1, homeRes: '' },
+  pending: null, pendingAt: 0, iconMode: '',
   state: { has: false, cur: null, target: null, app: '', error: false },
   apps: null, appsLoading: null, iconV: 0,
   dispId: null, animating: false, dirty: false,
@@ -122,6 +123,7 @@ async function loadAll() {
   S.conf.rateId = /^\d+$/.test(c.global_id || '') ? +c.global_id : null;
   S.conf.appSw = c.app_switch !== '0';
   S.conf.appIntv = Math.max(1, parseInt(c.app_interval) || 1);
+  S.conf.homeRes = /^\d+x\d+$/.test(c.home_res || '') ? c.home_res : '';
   S.rates = parseRates(rates);
   S.rules = parseRules(apps);
   S.state = parseState(state);
@@ -130,7 +132,7 @@ async function loadAll() {
 }
 
 const saveSettings = async () => {
-  const c = `global_id=${S.conf.rateId ?? ''}\napp_switch=${S.conf.appSw ? 1 : 0}\napp_interval=${S.conf.appIntv}\n`;
+  const c = `global_id=${S.conf.rateId ?? ''}\napp_switch=${S.conf.appSw ? 1 : 0}\napp_interval=${S.conf.appIntv}\nhome_res=${S.conf.homeRes}\n`;
   return (await writeFile(`${DATA}/settings.conf`, c)) && bump();
 };
 
@@ -142,7 +144,23 @@ const saveRules = async () => {
 const byId = id => S.rates.find(r => r.id === id) || null;
 const ltpoText = () => ({ disable: '强制禁用', keep: '保留（全局不生效）', compat: '兼容模式' })[S.ltpo] || S.ltpo;
 const ruleFor = pkg => S.rules.find(r => r.pkg === pkg) || null;
-const appLabel = pkg => (S.apps && S.apps.get(pkg)?.label) || pkg;
+const KNOWN = {
+  'com.tencent.tmgp.sgame': '王者荣耀', 'com.miHoYo.Yuanshen': '原神', 'com.miHoYo.ys.bilibili': '原神', 'com.tencent.tmgp.pubgmhd': '和平精英',
+  'com.miHoYo.hkrpg': '崩坏：星穹铁道', 'com.miHoYo.Nap': '绝区零', 'com.kurogame.mingchao': '鸣潮', 'com.tencent.lolm': '英雄联盟手游',
+  'com.tencent.jkchess': '金铲铲之战', 'com.tencent.tmgp.cf': '穿越火线：枪战王者', 'com.netease.party': '蛋仔派对', 'com.tencent.tmgp.speedmobile': 'QQ飞车',
+  'com.tencent.mm': '微信', 'com.tencent.mobileqq': 'QQ', 'tv.danmaku.bili': '哔哩哔哩', 'com.ss.android.ugc.aweme': '抖音',
+  'com.taobao.taobao': '淘宝', 'com.sina.weibo': '微博', 'com.xingin.xhs': '小红书', 'com.coolapk.market': '酷安',
+};
+const GAMES = Object.keys(KNOWN).slice(0, 12);
+const appLabel = pkg => (S.apps && S.apps.get(pkg)?.label) || KNOWN[pkg] || pkg;
+const homeRes = () => {
+  const ks = [...new Set(S.rates.map(resOf))];
+  if (ks.includes(S.conf.homeRes)) return S.conf.homeRes;
+  const r = byId(S.state.cur) || byId(S.conf.rateId);
+  if (r) return resOf(r);
+  const n = k => S.rates.filter(x => resOf(x) === k).length;
+  return ks.sort((a, b) => n(b) - n(a))[0];
+};
 
 function baseOf(k) {
   const n = S.rates.filter(r => resOf(r) === k && r.type === 'native');
@@ -292,8 +310,16 @@ function renderKeys() {
     el.innerHTML = '<div class="panel"><div class="empty">尚未读取到档位，请在「档位」页重新扫描</div></div>';
     return;
   }
-  const gs = groups(S.rates, false);
-  el.innerHTML = gs.map(([k, rs]) => `${gs.length > 1 ? `<div class="res">${esc(resText(k))}</div>` : ''}<div class="keys${keep ? ' off' : ''}">${rs.map(r => keyHtml(r, r.id === S.conf.rateId, r.id === S.state.cur)).join('')}</div>`).join('');
+  const k = homeRes();
+  const rs = S.rates.filter(r => resOf(r) === k).sort((a, b) => a.fps - b.fps);
+  el.innerHTML = `<div class="keys${keep ? ' off' : ''}">${rs.map(r => keyHtml(r, r.id === S.conf.rateId, r.id === S.state.cur)).join('')}</div>`;
+}
+
+function renderResSeg() {
+  const ks = [...new Set(S.rates.map(resOf))];
+  $('#res-row').style.display = ks.length > 1 ? '' : 'none';
+  const cur = homeRes();
+  $('#seg-res').innerHTML = ks.map(k => `<b data-v="${esc(k)}" class="${k === cur ? 'on' : ''}">${esc(resText(k))}</b>`).join('');
 }
 
 function renderStatus() {
@@ -308,7 +334,6 @@ function renderStatus() {
   $('#status-text').textContent = txt;
   const rule = S.conf.appSw ? ruleFor(st.app) : null;
   $('#st-src').textContent = st.target == null ? '系统控制' : rule && rule.id === st.target ? '应用规则' : '全局档位';
-  $('#st-app').textContent = st.app ? appLabel(st.app) : '—';
   const cur = byId(st.cur);
   $('#st-res').textContent = cur ? resText(resOf(cur)) : '—';
   $('#st-ltpo').textContent = ltpoText();
@@ -317,6 +342,10 @@ function renderStatus() {
 
 function syncDial() {
   if (S.animating) return;
+  if (S.pending != null) {
+    if (S.state.cur === S.pending || Date.now() - S.pendingAt > 20000) S.pending = null;
+    else return;
+  }
   const r = byId(S.state.cur);
   if (r && r.id !== S.dispId) animateTo(r);
 }
@@ -347,6 +376,8 @@ async function pickGlobal(id) {
     return;
   }
   toast(`全局档位已设为 ${t.fps} Hz`);
+  S.pending = id;
+  S.pendingAt = Date.now();
   animateTo(t);
 }
 
@@ -428,6 +459,7 @@ async function rescan() {
 
 function renderAllRates() {
   buildDial();
+  renderResSeg();
   renderKeys();
   renderLadders();
   renderRules();
@@ -441,7 +473,7 @@ function renderAllRates() {
 
 function iconHtml(pkg) {
   const label = appLabel(pkg);
-  return `<span class="icon">${esc([...label][0] || '?')}<img src="icons/${encodeURIComponent(pkg)}.png?v=${S.iconV}" alt=""></span>`;
+  return `<span class="icon">${esc([...label][0] || '?')}${S.iconMode === 'ksu' ? `<img src="ksu://icon/${esc(pkg)}" alt="">` : ''}</span>`;
 }
 
 function renderRules() {
@@ -463,12 +495,23 @@ function renderRules() {
 function loadApps() {
   if (S.appsLoading) return S.appsLoading;
   S.appsLoading = (async () => {
-    const r = await exec(`sh ${q(`${MOD}/astra.sh`)} apps`, 90000);
     const m = new Map();
-    r.stdout.split('\n').forEach(l => {
-      const [pkg, label, sys] = l.split('\t');
-      if (pkg && /^[\w.]+$/.test(pkg)) m.set(pkg, { label: label || pkg, sys: sys === '1' });
-    });
+    try {
+      if (window.ksu && typeof ksu.listPackages === 'function' && typeof ksu.getPackagesInfo === 'function') {
+        const names = [...JSON.parse(ksu.listPackages('user')), ...JSON.parse(ksu.listPackages('system'))];
+        JSON.parse(ksu.getPackagesInfo(JSON.stringify(names))).forEach(i => {
+          if (i && i.packageName) m.set(i.packageName, { label: i.appLabel || KNOWN[i.packageName] || i.packageName, sys: !!i.isSystem });
+        });
+        if (m.size) S.iconMode = 'ksu';
+      }
+    } catch (e) { }
+    if (!m.size) {
+      const r = await exec(`sh ${q(`${MOD}/astra.sh`)} apps`, 30000);
+      r.stdout.split('\n').forEach(l => {
+        const [pkg, sys] = l.trim().split(/\s+/);
+        if (pkg && /^[\w.]+$/.test(pkg)) m.set(pkg, { label: KNOWN[pkg] || pkg, sys: sys === '1' });
+      });
+    }
     if (m.size) {
       S.apps = m;
       S.iconV = Date.now();
@@ -514,7 +557,7 @@ async function addRule() {
     if (!S.apps) { box.innerHTML = '<div class="empty">正在读取应用列表…<br>首次读取需要几秒钟</div>'; return; }
     const f = filter.toLowerCase();
     const list = [...S.apps.entries()].filter(([p, v]) => !f || p.toLowerCase().includes(f) || v.label.toLowerCase().includes(f))
-      .sort((a, b) => (a[1].sys - b[1].sys) || a[1].label.localeCompare(b[1].label, 'zh'))
+      .sort((a, b) => (GAMES.includes(b[0]) - GAMES.includes(a[0])) || (a[1].sys - b[1].sys) || a[1].label.localeCompare(b[1].label, 'zh'))
       .slice(0, 150);
     box.innerHTML = list.length ? list.map(([p, v]) => `<button class="row app" data-pkg="${esc(p)}">${iconHtml(p)}<span class="nm"><b>${esc(v.label)}</b><small>${esc(p)}</small></span>${ruleFor(p) ? `<b class="num hz">${byId(ruleFor(p).id)?.fps ?? ''}</b>` : ''}</button>`).join('') : '<div class="empty">没有找到匹配的应用</div>';
   };
@@ -530,6 +573,8 @@ async function addRule() {
     draw();
   }
 }
+
+const openUrl = u => exec(`am start -a android.intent.action.VIEW -d ${q(u)} >/dev/null 2>&1`);
 
 let ivTimer;
 function stepInterval(d) {
@@ -552,8 +597,15 @@ async function loadRecent() {
 async function openLog() {
   const t = await readFile(`${DATA}/run.log`);
   const lines = t.trim().split('\n').slice(-200).reverse().join('\n');
-  openSheet(`<h3>运行记录</h3><div class="logbox">${esc(lines || '暂无记录')}</div><div class="acts"><button class="btn solid" data-act="close">关闭</button></div>`, e => {
-    if (e.target.closest('[data-act="close"]')) closeSheet();
+  openSheet(`<h3>运行记录</h3><div class="logbox">${esc(lines || '暂无记录')}</div><div class="acts"><button class="btn" data-act="clear">清空记录</button><button class="btn solid" data-act="close">关闭</button></div>`, async e => {
+    const a = e.target.closest('[data-act]');
+    if (!a) return;
+    if (a.dataset.act === 'clear') {
+      const r = await exec(`: > ${q(`${DATA}/run.log`)}`);
+      toast(r.errno === 0 ? '运行记录已清空' : '清空失败');
+      loadRecent();
+    }
+    closeSheet();
   });
 }
 
@@ -653,6 +705,23 @@ function bind() {
   $('#seg-theme').addEventListener('click', e => { const b = e.target.closest('b'); if (b) applyTheme(b.dataset.v); });
   $('#seg-motion').addEventListener('click', e => { const b = e.target.closest('b'); if (b) applyMotion(b.dataset.v); });
   $('#open-log').addEventListener('click', openLog);
+  $('#seg-res').addEventListener('click', e => {
+    const b = e.target.closest('b');
+    if (!b) return;
+    S.conf.homeRes = b.dataset.v;
+    renderResSeg();
+    renderKeys();
+    renderStatus();
+    saveSettings();
+  });
+  $('#about').addEventListener('click', async e => {
+    const b = e.target.closest('[data-url], [data-qq]');
+    if (!b) return;
+    if (b.dataset.url) { openUrl(b.dataset.url); return; }
+    const n = b.dataset.qq;
+    try { await navigator.clipboard.writeText(n); toast(`群号 ${n} 已复制`); } catch (err) { toast(`群号 ${n}`); }
+    openUrl(`mqqapi://card/show_pslcard?src_type=internal&version=1&uin=${n}&card_type=group&source=qrcode`);
+  });
   $('#reset-all').addEventListener('click', resetAll);
   $('#scrim').addEventListener('click', closeSheet);
   $('#sheet').addEventListener('click', e => sheetHandler && sheetHandler(e));
@@ -677,6 +746,7 @@ async function init() {
   bind();
   await loadAll();
   buildDial();
+  renderResSeg();
   renderKeys();
   renderLadders();
   renderRules();

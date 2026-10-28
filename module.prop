@@ -1,7 +1,7 @@
 id=Astra_MaxRefresh_Pro
 name=Astra_MaxRefresh_Pro
-version=V5.1
-versionCode=51
+version=V6.0
+versionCode=60
 author=穆远星
 description=Astra_MaxRefresh_Pro 基础配置文件，如果在安装后看到此描述，说明customize.sh脚本执行异常。
 updateJson=https://raw.githubusercontent.com/MuYuanXing/Astra_MaxRefresh_Pro/main/update.json
