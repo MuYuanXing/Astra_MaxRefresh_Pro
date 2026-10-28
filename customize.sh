@@ -3,7 +3,7 @@ SKIPUNZIP=1
 
 ui_print "- 解压模块文件..."
 unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || abort "解压失败，请检查存储空间后重新刷入"
-for f in service.sh common.sh astra.sh module.prop webroot/index.html; do
+for f in service.sh common.sh astra.sh bin/icons.dex module.prop webroot/index.html; do
     [ -f "$MODPATH/$f" ] || abort "安装包不完整（缺少 $f），请重新下载"
 done
 

@@ -1,227 +1,106 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Astra_MaxRefresh_Pro</title>
-    <link rel="stylesheet" href="internal/insets.css">
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Astra MaxRefresh Pro</title>
+<link rel="stylesheet" href="internal/insets.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="aurora" aria-hidden="true">
-        <div class="flow f1"></div>
-        <div class="flow f2"></div>
-        <div class="orb orb-a"></div>
-        <div class="orb orb-b"></div>
-        <div class="orb orb-c"></div>
+<div class="bg" aria-hidden="true"><i class="lamp"></i><i class="grain"></i></div>
+
+<main>
+  <section class="page on" data-page="home">
+    <header class="top">
+      <div class="mark">Astra</div>
+      <div class="status" id="status"><i class="led"></i><span id="status-text">读取中</span></div>
+    </header>
+
+    <div class="bezel">
+      <div class="dial" id="dial">
+        <div class="face"></div>
+        <div class="zone" id="zone"></div>
+        <div class="ticks" id="ticks"></div>
+        <div class="window"><div class="roll" id="roll"></div></div>
+        <div class="unit-print">Hz</div>
+        <div class="ft"><span id="ft">--</span> 毫秒 / 帧</div>
+        <div class="rotor" id="rotor"><div class="wob"><i class="trail"></i><i class="shadow"></i><i class="needle"></i></div></div>
+        <i class="cap"></i>
+        <i class="glass"></i>
+        <i class="flash" id="flash"></i>
+        <i class="wave"></i><i class="wave w2"></i>
+      </div>
+      <div class="pulse">
+        <span class="pl">帧信号</span>
+        <div class="train"><i id="train"></i></div>
+        <span class="pr" id="pr">--</span>
+      </div>
     </div>
 
-    <div class="star-layer sl-1" aria-hidden="true"></div>
-    <div class="star-layer sl-2" aria-hidden="true"></div>
+    <div class="route"><span class="rt">切换路径</span><span class="rp" id="rp">—</span></div>
 
-    <div class="ui-container">
-        <div class="ui-content hidden" id="page-apps">
-            <header class="page-header">
-                <h1 class="page-title">应用</h1>
-                <p class="page-subtitle">按应用自动切换刷新率档位</p>
-            </header>
+    <h2 class="sec">全局档位<small id="keys-hint">按下即生效</small></h2>
+    <div id="keys"></div>
 
-            <div class="glass-card anim-in">
-                <div class="card-header">
-                    <span class="card-title">切换设置</span>
-                    <button class="card-action" id="save-app-switch">保存</button>
-                </div>
-                <div class="row-list">
-                    <div class="info-row">
-                        <span class="info-label">按应用自动切换</span>
-                        <label class="ui-switch">
-                            <input type="checkbox" id="app-switch-enabled">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">轮询间隔</span>
-                        <div class="ui-stepper">
-                            <button class="step-btn" id="app-switch-interval-dec" aria-label="减少">−</button>
-                            <input type="number" class="stepper-input" id="app-switch-interval" min="1" max="10" step="1" readonly aria-label="轮询间隔秒数">
-                            <button class="step-btn" id="app-switch-interval-inc" aria-label="增加">＋</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="info-note neutral" id="app-switch-note">建议 1~3 秒；间隔越小切换越及时，但更耗电</div>
-            </div>
-
-            <div class="glass-card app-list-card anim-in">
-                <div class="card-header">
-                    <span class="card-title">应用列表</span>
-                    <button class="card-action accent" id="add-app-config">添加</button>
-                </div>
-                <div class="scan-desc">
-                    <p>填包名 + 刷新率ID，打开应用会自动切换到对应档位</p>
-                </div>
-                <div class="app-config-scroll">
-                    <div class="app-config-list" id="app-config-list"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="ui-content" id="page-home">
-            <header class="page-header">
-                <h1 class="page-title">Astra_MaxRefresh_Pro</h1>
-                <p class="page-subtitle">全局高刷控制</p>
-            </header>
-
-            <div class="glass-card hero-card anim-in">
-                <div class="hero-label">当前全局档位</div>
-                <div class="hero-value" id="hero-value"><span id="hero-fps">--</span><span class="hero-unit" id="hero-unit"></span></div>
-                <div class="hero-meta" id="hero-meta">尚未设置</div>
-                <div class="hero-chip" id="hero-ltpo">LTPO 检测中</div>
-            </div>
-
-            <div class="glass-card anim-in">
-                <div class="card-header">
-                    <span class="card-title">全局刷新率</span>
-                    <button class="card-action accent" id="save-global-rate">保存</button>
-                </div>
-                <div class="rate-selector" id="rate-selector"></div>
-                <div class="info-note" id="rate-note" style="display:none;">请先在设置页扫描并配置档位</div>
-                <div class="info-note" id="global-disabled-note" style="display:none;">保留LTPO模式下：全局档位不生效，仅应用配置切换生效</div>
-            </div>
-        </div>
-
-        <div class="ui-content hidden" id="page-settings">
-            <header class="page-header">
-                <h1 class="page-title">设置</h1>
-                <p class="page-subtitle">扫描并配置刷新率档位属性</p>
-            </header>
-
-            <div class="glass-card anim-in">
-                <div class="card-header">
-                    <span class="card-title">外观</span>
-                </div>
-                <div class="theme-seg" id="theme-seg">
-                    <button class="theme-seg-btn" data-mode="light">
-                        <svg viewBox="0 0 24 24"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0-15v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4m0-14.2-1.4 1.4M6.3 17.7l-1.4 1.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                        浅色
-                    </button>
-                    <button class="theme-seg-btn" data-mode="dark">
-                        <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        深色
-                    </button>
-                    <button class="theme-seg-btn" data-mode="auto">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18V3z" fill="currentColor"/></svg>
-                        跟随系统
-                    </button>
-                </div>
-            </div>
-
-            <div class="glass-card anim-in">
-                <div class="card-header">
-                    <span class="card-title">动画效果</span>
-                </div>
-                <div class="theme-seg" id="motion-seg">
-                    <button class="theme-seg-btn motion-seg-btn" data-level="high">高</button>
-                    <button class="theme-seg-btn motion-seg-btn" data-level="medium">中</button>
-                    <button class="theme-seg-btn motion-seg-btn" data-level="low">低</button>
-                </div>
-                <div class="info-note neutral">低端设备建议选择「低」，关闭背景动画并降低模糊</div>
-            </div>
-
-            <div class="glass-card anim-in">
-                <div class="card-header">
-                    <span class="card-title">档位扫描</span>
-                    <button class="card-action danger" id="scan-rates">全量扫描</button>
-                </div>
-                <div class="scan-desc">
-                    <p>首次使用必须先点击「全量扫描」</p>
-                    <p>扫描你设备支持的所有刷新率档位</p>
-                </div>
-            </div>
-
-            <div class="glass-card anim-in">
-                <div class="card-header">
-                    <span class="card-title">档位属性设置</span>
-                    <button class="card-action accent" id="save-rates">保存</button>
-                </div>
-                <details class="guide">
-                    <summary>不会配置？点开照做</summary>
-                    <div class="settings-desc">
-                        <p>① 先点上方<span class="highlight">「全量扫描」</span></p>
-                        <p>② 在下方列表里：将非原生刷新率档位选为<span class="highlight">「超频」</span></p>
-                        <p>③ 每个分辨率至少选 1 个<span class="highlight">「原生基准」</span>（一般选该分辨率下的原生最高档）</p>
-                        <p>④ 所有<span class="highlight">「超频」</span>都要填<span class="highlight">切换顺序</span>：从 1 开始，数字越小越先切；同一分辨率各填各的 1/2/3…</p>
-                        <p>⑤ 点上方<span class="highlight">「保存」</span>完成</p>
-                        <p>例：同一分辨率 120/144/165 → 顺序填 1/2/3</p>
-                    </div>
-                </details>
-                <div class="rate-settings-list" id="rate-settings-list"></div>
-            </div>
-
-            <div class="glass-card anim-in">
-                <div class="card-header">
-                    <span class="card-title">当前配置</span>
-                </div>
-                <div class="row-list">
-                    <div class="info-row">
-                        <span class="info-label">LTPO模式</span>
-                        <span class="info-value" id="current-ltpo-mode">加载中</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">全局档位ID</span>
-                        <span class="info-value" id="current-global-id">未设置</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">原生基准</span>
-                        <span class="info-value" id="current-native-base">未设置</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <nav class="ui-tabbar">
-            <div class="tab-item" data-page="apps" role="tab" aria-label="应用">
-                <svg class="tab-icon" viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
-                <span class="tab-label">应用</span>
-            </div>
-            <div class="tab-item active" data-page="home" role="tab" aria-label="主页">
-                <svg class="tab-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-                <span class="tab-label">主页</span>
-            </div>
-            <div class="tab-item" data-page="settings" role="tab" aria-label="设置">
-                <svg class="tab-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-                <span class="tab-label">设置</span>
-            </div>
-        </nav>
+    <h2 class="sec">当前状态</h2>
+    <div class="panel">
+      <div class="row"><span>生效来源</span><b id="st-src">—</b></div>
+      <div class="row"><span>前台应用</span><b id="st-app" class="ell">—</b></div>
+      <div class="row"><span>分辨率</span><b id="st-res" class="num">—</b></div>
+      <div class="row"><span>LTPO</span><b id="st-ltpo">—</b></div>
     </div>
+  </section>
 
-    <div class="sheet-backdrop" id="app-input-modal">
-        <div class="sheet-panel">
-            <div class="sheet-grabber"></div>
-            <div class="sheet-title">添加应用配置</div>
-            <div class="input-group">
-                <input type="text" class="ui-input" id="app-package" placeholder="包名 (如: com.tencent.tmgp.sgame)" autocomplete="off">
-                <input type="number" class="ui-input" id="app-rate-id" placeholder="刷新率ID (如: 4)" inputmode="numeric">
-            </div>
-            <div class="sheet-actions">
-                <button class="sheet-btn ghost" id="input-cancel">取消</button>
-                <button class="sheet-btn primary" id="input-done">完成</button>
-            </div>
-        </div>
+  <section class="page" data-page="rates">
+    <header class="top"><h1>档位</h1></header>
+    <p class="lead">超频档位从原生基准出发，按顺序逐级切换。点按档位说明可设为原生基准。</p>
+    <div id="ladders"></div>
+  </section>
+
+  <section class="page" data-page="apps">
+    <header class="top"><h1>应用</h1></header>
+    <div class="panel">
+      <div class="row"><span>按应用切换</span><label class="sw"><input type="checkbox" id="app-sw"><i></i></label></div>
+      <div class="row"><span>检测间隔</span><div class="stepper"><button data-step="-1">−</button><b class="num" id="app-iv">1 秒</b><button data-step="1">+</button></div></div>
     </div>
+    <h2 class="sec">规则<small id="rule-count"></small></h2>
+    <div class="panel" id="rules"></div>
+  </section>
 
-    <div class="alert-backdrop" id="confirm-modal">
-        <div class="alert-panel">
-            <div class="alert-title" id="confirm-title">确认</div>
-            <div class="alert-message" id="confirm-message"></div>
-            <div class="alert-actions">
-                <button class="alert-btn" id="confirm-cancel">取消</button>
-                <button class="alert-btn danger" id="confirm-ok">继续</button>
-            </div>
-        </div>
+  <section class="page" data-page="set">
+    <header class="top"><h1>设置</h1></header>
+    <h2 class="sec">显示</h2>
+    <div class="panel">
+      <div class="row"><span>外观</span><div class="seg" id="seg-theme"><b data-v="auto">跟随系统</b><b data-v="light">浅色</b><b data-v="dark">深色</b></div></div>
+      <div class="row"><span>动画</span><div class="seg" id="seg-motion"><b data-v="full">完整</b><b data-v="lite">精简</b><b data-v="off">关闭</b></div></div>
     </div>
+    <h2 class="sec">最近切换</h2>
+    <ul class="panel log" id="recent"></ul>
+    <h2 class="sec">模块</h2>
+    <div class="panel">
+      <div class="row"><span>LTPO 模式</span><b id="set-ltpo">—</b></div>
+      <button class="row link" id="open-log"><span>运行记录</span><b>查看</b></button>
+      <button class="row link danger" id="reset-all"><span>清除全部配置</span><b></b></button>
+    </div>
+    <p class="foot" id="foot">Astra MaxRefresh Pro</p>
+  </section>
+</main>
 
-    <div class="ui-toast" id="toast"></div>
+<div class="dock" data-for="rates"><button class="btn" id="rescan">重新扫描</button><button class="btn solid" id="save-rates">保存档位配置</button></div>
+<div class="dock" data-for="apps"><button class="btn solid" id="add-rule">添加规则</button></div>
 
-    <script src="script.js"></script>
+<nav class="tabs">
+  <i class="tab-ind" id="tab-ind"></i>
+  <button class="tab on" data-go="home"><svg viewBox="0 0 24 24"><path d="M3.5 17.5a8.5 8.5 0 1 1 17 0"/><path d="M6.4 11.6l1.3.8M12 6.4v1.5M17.6 11.6l-1.3.8"/><path class="hl" d="M12 17.5l4.6-5.4"/><circle cx="12" cy="17.5" r="1.5"/></svg>首页</button>
+  <button class="tab" data-go="rates"><svg viewBox="0 0 24 24"><path d="M6 6v12M12 6v12M18 6v6M6 12h12"/><circle cx="6" cy="5" r="1.6"/><circle cx="12" cy="5" r="1.6"/><circle cx="18" cy="5" r="1.6"/><circle class="hl fill" cx="18" cy="12" r="2.2"/></svg>档位</button>
+  <button class="tab" data-go="apps"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect class="hl" x="13" y="13" width="7" height="7" rx="2"/></svg>应用</button>
+  <button class="tab" data-go="set"><svg viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="6"/><path class="hl" d="M12 13.5l3.2-3.2"/><path d="M12 3v2M5 6.2l1.3 1.3M19 6.2l-1.3 1.3M3 13.5h2M19 13.5h2"/></svg>设置</button>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><i class="grip"></i><div class="sheet-body" id="sheet-body"></div></div>
+<div class="toast" id="toast"></div>
+<script src="script.js"></script>
 </body>
 </html>

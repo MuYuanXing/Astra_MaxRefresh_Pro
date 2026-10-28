@@ -1,1 +1,3 @@
 *.zip
+tools/icons/out/
+dist/

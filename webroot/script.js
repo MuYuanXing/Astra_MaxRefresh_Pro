@@ -1,733 +1,704 @@
-class AstraEngine {
-    constructor() {
-        this.defaultId = 'Astra_MaxRefresh_Pro';
-        this.moduleId = this.defaultId;
-        this.mod = `/data/adb/modules/${this.defaultId}`;
-        this.pdir = `/data/adb/${this.defaultId}_data`;
-        this.ltpoMode = '';
-        this.rates = [];
-        this.apps = [];
-        this.conf = { rateId: null, appSw: true, appIntv: 1 };
-        this.curId = null;
-        this.toastTimer = null;
-        this.themeMedia = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-        this.initTheme();
-        this.initMotion();
-        this.init();
+const DATA = '/data/adb/Astra_MaxRefresh_Pro_data';
+let MOD = '/data/adb/modules/Astra_MaxRefresh_Pro';
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const q = s => `'${String(s).replace(/'/g, `'"'"'`)}'`;
+const resOf = r => `${r.w}x${r.h}`;
+const resText = k => k.replace('x', ' × ');
+
+const S = {
+  ltpo: '', ver: '', rates: [], rules: [],
+  conf: { rateId: null, appSw: true, appIntv: 1 },
+  state: { has: false, cur: null, target: null, app: '', error: false },
+  apps: null, appsLoading: null, iconV: 0,
+  dispId: null, animating: false, dirty: false,
+  lo: 60, hi: 180, baseFps: 120,
+};
+
+function exec(cmd, ms = 10000) {
+  return new Promise(resolve => {
+    if (!window.ksu || typeof ksu.exec !== 'function') {
+      resolve({ errno: 127, stdout: '', stderr: '请在 Root 管理器中打开' });
+      return;
     }
-
-    
-
-    initTheme() {
-        const mode = this.themeMode();
-        this.applyTheme(mode);
-        if (this.themeMedia) {
-            const onChange = () => { if (this.themeMode() === 'auto') this.applyTheme('auto'); };
-            if (typeof this.themeMedia.addEventListener === 'function') this.themeMedia.addEventListener('change', onChange);
-            else if (typeof this.themeMedia.addListener === 'function') this.themeMedia.addListener(onChange);
-        }
+    const cb = `astra_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    let done = false;
+    const finish = r => {
+      if (done) return;
+      done = true;
+      window[cb] = () => {};
+      resolve(r);
+    };
+    const tm = setTimeout(() => finish({ errno: 124, stdout: '', stderr: '命令超时' }), ms);
+    window[cb] = (errno, stdout, stderr) => {
+      clearTimeout(tm);
+      finish({ errno: Number(errno) || 0, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
+    };
+    try {
+      ksu.exec(cmd, '{}', cb);
+    } catch (e) {
+      clearTimeout(tm);
+      finish({ errno: 127, stdout: '', stderr: String(e) });
     }
-
-    themeMode() {
-        const m = localStorage.getItem('stellar-theme');
-        return (m === 'light' || m === 'dark' || m === 'auto') ? m : 'auto';
-    }
-
-    applyTheme(mode) {
-        localStorage.setItem('stellar-theme', mode);
-        const resolved = (mode === 'auto')
-            ? (this.themeMedia && this.themeMedia.matches ? 'dark' : 'light')
-            : mode;
-        document.documentElement.dataset.theme = resolved;
-        document.querySelectorAll('.theme-seg-btn[data-mode]').forEach(b => {
-            b.classList.toggle('active', b.dataset.mode === mode);
-        });
-    }
-
-    
-
-    initMotion() { this.applyMotion(this.motionLevel()); }
-
-    motionLevel() {
-        const v = localStorage.getItem('stellar-motion');
-        return (v === 'medium' || v === 'low') ? v : 'high';
-    }
-
-    applyMotion(level) {
-        localStorage.setItem('stellar-motion', level);
-        document.documentElement.dataset.motion = level;
-        document.querySelectorAll('.motion-seg-btn').forEach(b => {
-            b.classList.toggle('active', b.dataset.level === level);
-        });
-    }
-
-    
-
-    cleanStr(v) { return String(v ?? '').trim(); }
-
-    safeModuleId(v) {
-        const s = this.cleanStr(v);
-        if (!s) return '';
-        return /^[A-Za-z0-9._-]+$/.test(s) ? s : '';
-    }
-
-    safeModuleDir(v) {
-        const s = this.cleanStr(v);
-        if (!s) return '';
-        return s.startsWith('/data/adb/modules/') ? s : '';
-    }
-
-    parseModuleInfo(v) {
-        if (!v) return null;
-        if (typeof v === 'object') return v;
-        if (typeof v !== 'string') return null;
-        const s = v.trim();
-        if (!s) return null;
-        if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {
-            try { return JSON.parse(s); } catch (e) { console.warn(e); }
-        }
-        return { id: s };
-    }
-
-    loadModuleInfo() {
-        try {
-            if (!window.ksu || typeof ksu.moduleInfo !== 'function') return;
-            const raw = ksu.moduleInfo();
-            const info = this.parseModuleInfo(raw);
-            if (!info) return;
-
-            const moduleDir = this.safeModuleDir(info.moduleDir || info.module_dir);
-            const moduleId = this.safeModuleId(info.id || info.moduleId || info.module_id);
-
-            if (moduleDir) this.mod = moduleDir;
-            if (moduleId) {
-                this.moduleId = moduleId;
-                this.pdir = `/data/adb/${moduleId}_data`;
-                if (!moduleDir) this.mod = `/data/adb/modules/${moduleId}`;
-            }
-        } catch (e) { console.warn(e); }
-    }
-
-    escapeHtml(s) {
-        return String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    shQuote(s) {
-        const v = String(s);
-        return `'${v.replace(/'/g, `'\"'\"'`)}'`;
-    }
-
-    normalizeOutput(v) {
-        if (v === null || v === undefined) return '';
-        if (typeof v === 'string') return v;
-        if (typeof v === 'object') {
-            if (typeof v.stdout === 'string') return v.stdout;
-            if (typeof v.stderr === 'string') return v.stderr;
-            try { return JSON.stringify(v); } catch (e) { return String(v); }
-        }
-        return String(v);
-    }
-
-    b64EncodeUtf8(s) {
-        const v = String(s ?? '');
-        try {
-            if (typeof TextEncoder === 'function') {
-                const bytes = new TextEncoder().encode(v);
-                let binary = '';
-                const chunk = 0x8000;
-                for (let i = 0; i < bytes.length; i += chunk) {
-                    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-                }
-                return btoa(binary);
-            }
-        } catch (e) { console.warn(e); }
-        try {
-            return btoa(unescape(encodeURIComponent(v)));
-        } catch (e) { console.warn(e); }
-        return btoa(v);
-    }
-
-    firstLine(s) {
-        const v = (s || '').toString().trim();
-        if (!v) return '';
-        const l = v.split('\n').map(x => x.trim()).find(x => x);
-        return l || '';
-    }
-
-    cut(s, maxLen = 140) {
-        const v = String(s ?? '');
-        if (v.length <= maxLen) return v;
-        return v.slice(0, maxLen - 1) + '…';
-    }
-
-    toastErr(prefix, res) {
-        const e = this.firstLine(res?.stderr);
-        const n = (res && typeof res.errno !== 'undefined') ? res.errno : '?';
-        const msg = e ? `${prefix}失败(errno=${n}): ${e}` : `${prefix}失败(errno=${n})`;
-        this.toast(this.cut(msg));
-    }
-
-    vibrate(ms = 10) {
-        try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {  }
-    }
-
-    
-
-    async execFull(cmd, timeoutMs = 8000) {
-        return new Promise(resolve => {
-            const cb = `cb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-            let done = false;
-            const finish = (res) => {
-                if (done) return;
-                done = true;
-                try { delete window[cb]; } catch (e) {  }
-                resolve(res);
-            };
-            const tm = setTimeout(() => {
-                finish({ errno: 124, stdout: '', stderr: 'timeout' });
-            }, timeoutMs);
-            window[cb] = (errno, stdout, stderr) => {
-                clearTimeout(tm);
-                finish({
-                    errno: typeof errno === 'number' ? errno : parseInt(errno || 0),
-                    stdout: this.normalizeOutput(stdout),
-                    stderr: this.normalizeOutput(stderr),
-                });
-            };
-            try {
-                ksu.exec(cmd, "{}", cb);
-            } catch (e) {
-                clearTimeout(tm);
-                finish({ errno: 127, stdout: '', stderr: String(e) });
-            }
-        });
-    }
-
-    async execOut(cmd, timeoutMs = 8000) {
-        const { stdout } = await this.execFull(cmd, timeoutMs);
-        return stdout ? stdout.trim() : '';
-    }
-
-    async readFile(path, timeoutMs = 8000) {
-        const cmd = `/system/bin/cat ${this.shQuote(path)} 2>/dev/null`;
-        const { stdout } = await this.execFull(cmd, timeoutMs);
-        return stdout || '';
-    }
-
-    async writeFile(path, content, timeoutMs = 8000) {
-        const b64 = this.b64EncodeUtf8(content);
-        const script = 'umask 022; printf %s \"$1\" | /system/bin/base64 -d > \"$2.tmp\" && /system/bin/mv -f \"$2.tmp\" \"$2\"';
-        const cmd = `/system/bin/sh -c ${this.shQuote(script)} sh ${this.shQuote(b64)} ${this.shQuote(path)}`;
-        return await this.execFull(cmd, timeoutMs);
-    }
-
-    ltpoText() {
-        if (this.ltpoMode === 'disable') return '强制禁用';
-        if (this.ltpoMode === 'keep') return '保留(全局不生效)';
-        if (this.ltpoMode === 'compat') return '兼容模式';
-        return this.ltpoMode || '未知';
-    }
-
-    
-
-    async init() {
-        this.loadModuleInfo();
-        await this.loadLtpoMode();
-        await this.loadRates();
-        await this.loadConf();
-        await this.loadApps();
-        await this.loadState();
-        this.render();
-        this.bindEv();
-        this.applyModeUi();
-    }
-
-    bindEv() {
-        document.querySelectorAll('.tab-item').forEach(t => {
-            t.addEventListener('click', e => {
-                this.vibrate(8);
-                this.page(e.currentTarget.dataset.page);
-            });
-        });
-
-        document.querySelectorAll('.theme-seg-btn[data-mode]').forEach(b => {
-            b.addEventListener('click', e => {
-                this.vibrate(8);
-                this.applyTheme(e.currentTarget.dataset.mode);
-            });
-        });
-
-        document.querySelectorAll('.motion-seg-btn').forEach(b => {
-            b.addEventListener('click', e => {
-                this.vibrate(8);
-                this.applyMotion(e.currentTarget.dataset.level);
-            });
-        });
-
-        document.getElementById('save-global-rate').addEventListener('click', () => this.saveRate());
-        document.getElementById('scan-rates').addEventListener('click', () => {
-            this.confirm('全量扫描', '此操作会读取系统当前支持的刷新率档位，不会持久修改系统。是否继续？', () => this.scan());
-        });
-        document.getElementById('save-rates').addEventListener('click', () => this.saveRates());
-        document.getElementById('save-app-switch').addEventListener('click', () => this.saveAppSwitch());
-
-        const intv = document.getElementById('app-switch-interval');
-        const bump = (delta) => {
-            if (!intv) return;
-            const min = parseInt(intv.min || '1', 10);
-            const max = parseInt(intv.max || '10', 10);
-            const cur = parseInt(intv.value || String(min), 10);
-            const base = Number.isFinite(cur) ? cur : min;
-            intv.value = String(Math.max(min, Math.min(max, base + delta)));
-            this.vibrate(6);
-        };
-        document.getElementById('app-switch-interval-dec')?.addEventListener('click', () => bump(-1));
-        document.getElementById('app-switch-interval-inc')?.addEventListener('click', () => bump(1));
-
-        document.getElementById('add-app-config').addEventListener('click', () => this.showInput());
-        document.getElementById('input-cancel').addEventListener('click', () => this.hideInput());
-        document.getElementById('input-done').addEventListener('click', () => this.addApp());
-        document.getElementById('app-input-modal').addEventListener('click', e => {
-            if (e.target.id === 'app-input-modal') this.hideInput();
-        });
-
-        document.getElementById('confirm-cancel').addEventListener('click', () => {
-            document.getElementById('confirm-modal').classList.remove('show');
-        });
-    }
-
-    
-
-    async loadLtpoMode() {
-        try {
-            const raw = await this.execOut(`/system/bin/cat ${this.shQuote(`${this.mod}/ltpo_mode`)} 2>/dev/null`);
-            this.ltpoMode = raw ? raw.trim() : '';
-        } catch (e) {
-            this.ltpoMode = '';
-        }
-    }
-
-    applyModeUi() {
-        const saveBtn = document.getElementById('save-global-rate');
-        const note = document.getElementById('global-disabled-note');
-        if (this.ltpoMode === 'keep') {
-            saveBtn?.classList.add('disabled');
-            note && (note.style.display = 'block');
-        } else {
-            saveBtn?.classList.remove('disabled');
-            note && (note.style.display = 'none');
-        }
-        const m = document.getElementById('current-ltpo-mode');
-        if (m) m.textContent = this.ltpoText();
-
-        const chip = document.getElementById('hero-ltpo');
-        if (chip) {
-            chip.classList.remove('on', 'warn');
-            if (this.ltpoMode === 'disable') { chip.textContent = 'LTPO 强制禁用'; chip.classList.add('on'); }
-            else if (this.ltpoMode === 'keep') { chip.textContent = 'LTPO 保留 · 全局不生效'; chip.classList.add('warn'); }
-            else if (this.ltpoMode === 'compat') { chip.textContent = 'LTPO 兼容模式'; chip.classList.add('on'); }
-            else chip.textContent = 'LTPO 状态未知';
-        }
-    }
-
-    parseKv(c) {
-        const o = {};
-        (c || '').split('\n').forEach(l => {
-            const i = l.indexOf('=');
-            if (i > 0) o[l.slice(0, i).trim()] = l.slice(i + 1).trim();
-        });
-        return o;
-    }
-
-    async loadConf() {
-        const o = this.parseKv(await this.readFile(`${this.pdir}/settings.conf`));
-        this.conf.rateId = /^\d+$/.test(o.global_id || '') ? parseInt(o.global_id) : null;
-        this.conf.appSw = o.app_switch !== '0';
-        const iv = parseInt(o.app_interval);
-        this.conf.appIntv = iv >= 1 ? iv : 1;
-    }
-
-    async loadState() {
-        const o = this.parseKv(await this.readFile(`${this.pdir}/state.conf`));
-        this.curId = /^\d+$/.test(o.cur_id || '') ? parseInt(o.cur_id) : null;
-    }
-
-    async saveConf() {
-        const c = `global_id=${this.conf.rateId ?? ''}\napp_switch=${this.conf.appSw ? 1 : 0}\napp_interval=${this.conf.appIntv}\n`;
-        const res = await this.writeFile(`${this.pdir}/settings.conf`, c);
-        if (res.errno !== 0) { this.toastErr('保存', res); return false; }
-        return await this.bump();
-    }
-
-    async bump() {
-        const res = await this.writeFile(`${this.pdir}/rev`, String(Date.now()));
-        if (res.errno !== 0) { this.toastErr('通知后台', res); return false; }
-        return true;
-    }
-
-    async loadRates() {
-        try {
-            const c = await this.readFile(`${this.pdir}/rates.conf`);
-            this.rates = [];
-            if (!c) return;
-            c.split('\n').forEach(l => {
-                if (!l.trim()) return;
-                const p = l.split(':');
-                if (p.length >= 6) {
-                    this.rates.push({
-                        id: parseInt(p[0]), w: p[1], h: p[2], fps: parseInt(p[3]),
-                        type: p[4], base: p[5] === '1', ord: p[6] ? parseInt(p[6]) : 0
-                    });
-                }
-            });
-        } catch (e) { console.warn(e); }
-    }
-
-    
-
-    async scan() {
-        this.toast('正在扫描档位...');
-        const raw = await this.execOut(`/system/bin/sh ${this.shQuote(`${this.mod}/astra.sh`)} scan`, 15000);
-        if (!raw) {
-            this.toast('扫描失败：未读取到档位信息');
-            return;
-        }
-        this.rates = raw.split('\n').map(l => l.trim().split(':')).filter(p => p.length >= 7).map(p => ({
-            id: parseInt(p[0]), w: p[1], h: p[2], fps: parseInt(p[3]),
-            type: p[4], base: p[5] === '1', ord: parseInt(p[6]) || 0
-        }));
-        this.drawSettings();
-        this.drawSelector();
-        this.vibrate(15);
-        this.toast(`扫描完成，共 ${this.rates.length} 个档位`);
-    }
-
-    async saveRates() {
-        if (this.rates.some(r => r.type === 'overclock' && (!r.ord || r.ord < 1))) {
-            this.toast('请为所有超频档位填写切换顺序(从1开始)');
-            return;
-        }
-        const noBase = [...new Set(this.rates.filter(r => r.type === 'overclock').map(r => `${r.w}x${r.h}`))]
-            .filter(k => !this.rates.some(r => r.base && r.type === 'native' && `${r.w}x${r.h}` === k));
-        if (noBase.length) {
-            this.toast(`请为 ${noBase.join('、')} 设置原生基准`);
-            return;
-        }
-        const dup = this.rates.filter(r => r.type === 'overclock').some((r, _, a) => a.some(x => x !== r && x.ord === r.ord && x.w === r.w && x.h === r.h));
-        if (dup) {
-            this.toast('同一分辨率的超频档切换顺序不能重复');
-            return;
-        }
-        const lines = this.rates.map(r => `${r.id}:${r.w}:${r.h}:${r.fps}:${r.type}:${r.base ? '1' : '0'}:${r.ord || 0}`);
-        const res = await this.writeFile(`${this.pdir}/rates.conf`, `${lines.join('\n')}\n`);
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
-        if (!(await this.bump())) return;
-        this.updInfo();
-        this.drawSelector();
-        this.vibrate(15);
-        this.toast('档位配置已保存');
-    }
-
-    async saveRate() {
-        if (this.ltpoMode === 'keep') { this.toast('保留LTPO模式：全局档位不生效'); return; }
-        const el = document.querySelector('#rate-selector .rate-item.active');
-        if (!el) { this.toast('请选择刷新率'); return; }
-        const id = parseInt(el.dataset.id);
-        this.conf.rateId = id;
-        if (!(await this.saveConf())) return;
-        const r = this.rates.find(x => x.id === id);
-        this.updInfo();
-        this.vibrate(15);
-        this.toast(`已保存: ${r?.fps || id}Hz (ID:${id})`);
-    }
-
-    rateOf(id) { return this.rates.find(r => r.id === id) || null; }
-
-    
-
-    async loadApps() {
-        try {
-            const c = await this.readFile(`${this.pdir}/apps.conf`);
-            this.apps = (c || '').split('\n').filter(l => l.includes('=')).map(l => {
-                const [p, i] = l.split('=');
-                return { pkg: p.trim(), id: i.trim() };
-            }).filter(x => x.pkg && x.id);
-        } catch (e) { console.warn(e); }
-    }
-
-    async saveApps() {
-        const c = this.apps.map(x => `${x.pkg}=${x.id}`).join('\n');
-        const res = await this.writeFile(`${this.pdir}/apps.conf`, c ? `${c}\n` : '');
-        if (res.errno !== 0) { this.toastErr('保存', res); return; }
-        await this.bump();
-    }
-
-    
-
-    render() {
-        this.drawSelector();
-        this.drawSettings();
-        this.drawApps();
-        this.drawAppSwitch();
-        this.updInfo();
-    }
-
-    stagger(container) {
-        container.querySelectorAll('.pop-in').forEach((el, i) => {
-            el.style.animationDelay = `${Math.min(i * 45, 400)}ms`;
-        });
-    }
-
-    drawSelector() {
-        const el = document.getElementById('rate-selector');
-        const note = document.getElementById('rate-note');
-        if (!this.rates.length) { el.innerHTML = ''; note.style.display = 'block'; return; }
-        note.style.display = 'none';
-        const groups = [];
-        const seen = new Map();
-        this.rates.forEach(r => {
-            const key = `${r.w}x${r.h}`;
-            if (!seen.has(key)) { seen.set(key, []); groups.push(key); }
-            seen.get(key).push(r);
-        });
-
-        el.innerHTML = groups.map(key => {
-            const items = seen.get(key).map(r => {
-                const typeClass = r.type === 'overclock' ? 'overclock' : '';
-                const typeText = r.type === 'overclock' ? '超频' : '原生';
-                const active = this.conf.rateId === r.id ? 'active' : '';
-                return `
-                <div class="rate-item pop-in ${active}" data-id="${r.id}">
-                    <div class="rate-item-left">
-                        <span class="rate-label">${this.escapeHtml(r.fps)}Hz</span>
-                        <span class="rate-type-tag ${typeClass}">${typeText}</span>
-                    </div>
-                    <span class="rate-id">ID ${this.escapeHtml(r.id)}</span>
-                </div>`;
-            }).join('');
-            return `<div class="rate-group-label">${this.escapeHtml(key)} 分辨率</div>${items}`;
-        }).join('');
-        this.stagger(el);
-
-        if (this.ltpoMode === 'keep') return;
-        el.querySelectorAll('.rate-item').forEach(x => {
-            x.addEventListener('click', e => {
-                this.vibrate(8);
-                el.querySelectorAll('.rate-item').forEach(y => y.classList.remove('active'));
-                e.currentTarget.classList.add('active');
-            });
-        });
-    }
-
-    drawSettings() {
-        const el = document.getElementById('rate-settings-list');
-        if (!this.rates.length) {
-            el.innerHTML = '<div class="empty-state">请先执行「全量扫描」<br>扫描你设备支持的刷新率档位</div>';
-            return;
-        }
-        el.innerHTML = this.rates.map((r, i) => `
-            <div class="rate-setting-item pop-in ${r.base ? 'is-base' : ''}" data-idx="${i}">
-                <div class="rate-setting-header">
-                    <div class="rate-setting-info">
-                        <span class="rate-setting-fps">${this.escapeHtml(r.fps)}Hz</span>
-                        ${r.base ? '<span class="rate-setting-badge">基准</span>' : ''}
-                    </div>
-                    <div class="rate-setting-types">
-                        <span class="type-btn native ${r.type === 'native' ? 'active' : ''}" data-idx="${i}" data-type="native">原生</span>
-                        <span class="type-btn overclock ${r.type === 'overclock' ? 'active' : ''}" data-idx="${i}" data-type="overclock">超频</span>
-                    </div>
-                </div>
-                <div class="rate-setting-meta">${this.escapeHtml(r.w)}x${this.escapeHtml(r.h)} · ID ${this.escapeHtml(r.id)}</div>
-                <div class="rate-setting-action">
-                    <div class="base-btn ${r.base ? 'is-base' : ''}" data-idx="${i}">
-                        ${r.base ? '✓ 已设为该分辨率的原生基准' : '设为该分辨率的原生基准'}
-                    </div>
-                </div>
-                ${r.type === 'overclock' ? `
-                    <div class="order-input-row">
-                        <span class="order-label">切换顺序 <span class="required">*必填</span></span>
-                        <input type="number" class="order-input" data-idx="${i}" value="${this.escapeHtml(r.ord || '')}" placeholder="必填" inputmode="numeric">
-                    </div>
-                ` : ''}
-            </div>
-        `).join('');
-        this.stagger(el);
-
-        el.querySelectorAll('.type-btn').forEach(b => {
-            b.addEventListener('click', e => {
-                this.vibrate(6);
-                const i = parseInt(e.target.dataset.idx), t = e.target.dataset.type;
-                this.rates[i].type = t;
-                if (t === 'native') this.rates[i].ord = 0;
-                else this.rates[i].base = false;
-                this.drawSettings();
-            });
-        });
-        el.querySelectorAll('.base-btn').forEach(b => {
-            b.addEventListener('click', e => {
-                this.vibrate(10);
-                const i = parseInt(e.target.dataset.idx), r = this.rates[i], res = `${r.w}x${r.h}`;
-                this.rates.forEach(x => { if (`${x.w}x${x.h}` === res) x.base = false; });
-                this.rates[i].base = true;
-                this.rates[i].type = 'native';
-                this.rates[i].ord = 0;
-                this.drawSettings();
-            });
-        });
-        el.querySelectorAll('.order-input').forEach(inp => {
-            inp.addEventListener('change', e => {
-                this.rates[parseInt(e.target.dataset.idx)].ord = parseInt(e.target.value) || 0;
-            });
-        });
-    }
-
-    drawApps() {
-        const el = document.getElementById('app-config-list');
-        if (!this.apps.length) {
-            el.innerHTML = '<div class="empty-state">暂无配置<br>点右上角「添加」创建第一条规则</div>';
-            return;
-        }
-        el.innerHTML = this.apps.map((a, i) => `
-            <div class="config-item pop-in">
-                <span class="config-pkg">${this.escapeHtml(a.pkg)}</span>
-                <span class="config-id">ID ${this.escapeHtml(a.id)}</span>
-                <span class="config-delete" data-idx="${i}">删除</span>
-            </div>
-        `).join('');
-        this.stagger(el);
-        el.querySelectorAll('.config-delete').forEach(x => {
-            x.addEventListener('click', async e => {
-                this.vibrate(10);
-                this.apps.splice(parseInt(e.target.dataset.idx), 1);
-                await this.saveApps();
-                this.drawApps();
-                this.toast('已删除');
-            });
-        });
-    }
-
-    updInfo() {
-        const gid = document.getElementById('current-global-id');
-        const nbase = document.getElementById('current-native-base');
-        gid.textContent = (this.ltpoMode === 'keep') ? '不生效(保留LTPO)' : (this.conf.rateId || '未设置');
-        const bs = this.rates.filter(r => r.base);
-        nbase.textContent = bs.length ? bs.map(b => `${b.w}x${b.h}→ID:${b.id}`).join(', ') : '未设置';
-        const valueEl = document.getElementById('hero-value');
-        const fpsEl = document.getElementById('hero-fps');
-        const unitEl = document.getElementById('hero-unit');
-        const metaEl = document.getElementById('hero-meta');
-        if (fpsEl) {
-            const r = this.conf.rateId != null ? this.rateOf(this.conf.rateId) : null;
-            if (this.ltpoMode === 'keep') {
-                fpsEl.textContent = 'LTPO';
-                unitEl.textContent = '';
-                metaEl.textContent = '保留系统 LTPO，由应用配置驱动';
-            } else if (r) {
-                fpsEl.textContent = r.fps;
-                unitEl.textContent = 'Hz';
-                metaEl.textContent = `${r.w}x${r.h} · ID ${r.id}${r.type === 'overclock' ? ' · 超频' : ' · 原生'}`;
-            } else if (this.conf.rateId != null) {
-                fpsEl.textContent = this.conf.rateId;
-                unitEl.textContent = '';
-                metaEl.textContent = `档位 ID ${this.conf.rateId}（未在已扫描列表中）`;
-            } else {
-                fpsEl.textContent = '--';
-                unitEl.textContent = '';
-                metaEl.textContent = '尚未设置全局档位';
-            }
-            if (valueEl) {
-                valueEl.classList.remove('pop');
-                void valueEl.offsetWidth;
-                valueEl.classList.add('pop');
-            }
-        }
-    }
-
-    drawAppSwitch() {
-        const sw = document.getElementById('app-switch-enabled');
-        const it = document.getElementById('app-switch-interval');
-        if (sw) sw.checked = !!this.conf.appSw;
-        if (it) it.value = String(this.conf.appIntv || 1);
-    }
-
-    async saveAppSwitch() {
-        const sw = document.getElementById('app-switch-enabled');
-        const it = document.getElementById('app-switch-interval');
-        const enabled = !!sw?.checked;
-        const interval = parseInt(it?.value || '1', 10);
-        if (!Number.isFinite(interval) || interval < 1) { this.toast('轮询间隔至少为1秒'); return; }
-        this.conf.appSw = enabled;
-        this.conf.appIntv = interval;
-        if (!(await this.saveConf())) return;
-        this.vibrate(15);
-        this.toast('应用切换设置已保存');
-    }
-
-    
-
-    page(p) {
-        document.querySelectorAll('.ui-content').forEach(x => x.classList.add('hidden'));
-        const t = document.getElementById(`page-${p}`);
-        if (!t) return;
-        t.classList.remove('hidden', 'entering');
-        void t.offsetWidth;
-        t.classList.add('entering');
-        document.querySelectorAll('.tab-item').forEach(x => x.classList.remove('active'));
-        document.querySelector(`.tab-item[data-page="${p}"]`)?.classList.add('active');
-    }
-
-    
-
-    showInput() {
-        document.getElementById('app-input-modal').classList.add('show');
-        document.getElementById('app-package').value = '';
-        document.getElementById('app-rate-id').value = '';
-        setTimeout(() => document.getElementById('app-package').focus(), 350);
-    }
-
-    hideInput() { document.getElementById('app-input-modal').classList.remove('show'); }
-
-    async addApp() {
-        const pkg = document.getElementById('app-package').value.trim();
-        const id = document.getElementById('app-rate-id').value.trim();
-        if (!pkg || !id) { this.toast('请填写完整信息'); return; }
-        if (!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)+$/.test(pkg)) { this.toast('包名格式不正确'); return; }
-        if (!/^[0-9]+$/.test(id)) { this.toast('刷新率ID必须为数字'); return; }
-        const idx = this.apps.findIndex(x => x.pkg === pkg);
-        if (idx >= 0) this.apps[idx].id = id;
-        else this.apps.push({ pkg, id });
-        await this.saveApps();
-        this.drawApps();
-        this.hideInput();
-        this.vibrate(15);
-        this.toast('配置已添加');
-    }
-
-    confirm(title, msg, cb) {
-        document.getElementById('confirm-title').textContent = title;
-        document.getElementById('confirm-message').textContent = msg;
-        document.getElementById('confirm-modal').classList.add('show');
-        const ok = document.getElementById('confirm-ok');
-        const nok = ok.cloneNode(true);
-        ok.parentNode.replaceChild(nok, ok);
-        nok.addEventListener('click', () => {
-            document.getElementById('confirm-modal').classList.remove('show');
-            cb();
-        });
-    }
-
-    toast(msg) {
-        const t = document.getElementById('toast');
-        t.textContent = msg;
-        t.classList.add('show');
-        if (this.toastTimer) clearTimeout(this.toastTimer);
-        this.toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
-    }
+  });
 }
 
-document.addEventListener('DOMContentLoaded', () => new AstraEngine());
+async function readFile(p) {
+  const r = await exec(`cat ${q(p)} 2>/dev/null`);
+  return r.stdout || '';
+}
+
+function b64(s) {
+  const bytes = new TextEncoder().encode(s);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+async function writeFile(p, content) {
+  const script = 'umask 022; mkdir -p "${2%/*}" && printf %s "$1" | base64 -d > "$2.tmp" && mv -f "$2.tmp" "$2"';
+  const r = await exec(`sh -c ${q(script)} sh ${q(b64(content))} ${q(p)}`);
+  if (r.errno !== 0) toast(`保存失败：${r.stderr.trim() || r.errno}`);
+  return r.errno === 0;
+}
+
+const bump = () => writeFile(`${DATA}/rev`, String(Date.now()));
+
+function parseKv(t) {
+  const o = {};
+  t.split('\n').forEach(l => {
+    const i = l.indexOf('=');
+    if (i > 0) o[l.slice(0, i).trim()] = l.slice(i + 1).trim();
+  });
+  return o;
+}
+
+function parseRates(t) {
+  return t.split('\n').map(l => l.trim().split(':')).filter(p => p.length >= 6 && /^\d+$/.test(p[0]) && /^\d+$/.test(p[3])).map(p => ({
+    id: +p[0], w: p[1], h: p[2], fps: +p[3],
+    type: p[4] === 'overclock' ? 'overclock' : 'native',
+    base: p[5] === '1', ord: parseInt(p[6]) || 0,
+  }));
+}
+
+function parseRules(t) {
+  return t.split('\n').map(l => l.split('=')).filter(p => p.length === 2).map(([p, i]) => ({ pkg: p.trim(), id: +i.trim() })).filter(x => x.pkg && x.id >= 0 && /^\d+$/.test(String(x.id)));
+}
+
+function parseState(t) {
+  const o = parseKv(t);
+  return {
+    has: !!t.trim(),
+    cur: /^\d+$/.test(o.cur_id || '') ? +o.cur_id : null,
+    target: /^\d+$/.test(o.target || '') ? +o.target : null,
+    app: o.app || '',
+    error: o.error === '1',
+  };
+}
+
+function loadModuleInfo() {
+  try {
+    if (!window.ksu || typeof ksu.moduleInfo !== 'function') return;
+    const raw = ksu.moduleInfo();
+    const info = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const dir = info && (info.moduleDir || info.module_dir);
+    if (typeof dir === 'string' && dir.startsWith('/data/adb/modules/')) MOD = dir;
+  } catch (e) { }
+}
+
+async function loadAll() {
+  const files = [`${MOD}/ltpo_mode`, `${MOD}/module.prop`, `${DATA}/settings.conf`, `${DATA}/rates.conf`, `${DATA}/apps.conf`, `${DATA}/state.conf`];
+  const r = await exec(`for f in ${files.map(q).join(' ')}; do echo "@@@@"; cat "$f" 2>/dev/null; done`);
+  if (r.errno === 127) { toast(r.stderr); return false; }
+  const parts = r.stdout.split('@@@@\n').slice(1);
+  while (parts.length < files.length) parts.push('');
+  const [ltpo, prop, settings, rates, apps, state] = parts;
+  S.ltpo = ltpo.trim() || 'compat';
+  S.ver = parseKv(prop).version || '';
+  const c = parseKv(settings);
+  S.conf.rateId = /^\d+$/.test(c.global_id || '') ? +c.global_id : null;
+  S.conf.appSw = c.app_switch !== '0';
+  S.conf.appIntv = Math.max(1, parseInt(c.app_interval) || 1);
+  S.rates = parseRates(rates);
+  S.rules = parseRules(apps);
+  S.state = parseState(state);
+  S.dirty = false;
+  return true;
+}
+
+const saveSettings = async () => {
+  const c = `global_id=${S.conf.rateId ?? ''}\napp_switch=${S.conf.appSw ? 1 : 0}\napp_interval=${S.conf.appIntv}\n`;
+  return (await writeFile(`${DATA}/settings.conf`, c)) && bump();
+};
+
+const saveRules = async () => {
+  const c = S.rules.map(x => `${x.pkg}=${x.id}`).join('\n');
+  return (await writeFile(`${DATA}/apps.conf`, c ? `${c}\n` : '')) && bump();
+};
+
+const byId = id => S.rates.find(r => r.id === id) || null;
+const ltpoText = () => ({ disable: '强制禁用', keep: '保留（全局不生效）', compat: '兼容模式' })[S.ltpo] || S.ltpo;
+const ruleFor = pkg => S.rules.find(r => r.pkg === pkg) || null;
+const appLabel = pkg => (S.apps && S.apps.get(pkg)?.label) || pkg;
+
+function baseOf(k) {
+  const n = S.rates.filter(r => resOf(r) === k && r.type === 'native');
+  return n.find(r => r.base) || n.find(r => r.fps === 120) || null;
+}
+
+function ocSeq(k, f, t) {
+  return S.rates.filter(r => resOf(r) === k && r.type === 'overclock' && r.ord > 0 && (f < t ? r.ord > f && r.ord <= t : r.ord < f && r.ord >= t))
+    .sort((a, b) => f < t ? a.ord - b.ord : b.ord - a.ord);
+}
+
+function seq(c, t) {
+  if (!t) return [];
+  if (c && c.type === 'overclock' && t.type === 'overclock' && resOf(c) === resOf(t)) return ocSeq(resOf(t), c.ord, t.ord);
+  const out = [];
+  if (c && c.type === 'overclock') {
+    out.push(...ocSeq(resOf(c), c.ord, 0));
+    const b = baseOf(resOf(c));
+    if (b) out.push(b);
+  }
+  if (t.type === 'overclock') {
+    const b = baseOf(resOf(t));
+    if (b) out.push(b);
+    out.push(...ocSeq(resOf(t), 0, t.ord));
+  } else out.push(t);
+  return out.filter((r, i, a) => i === 0 ? r !== c : r !== a[i - 1]);
+}
+
+const ang = f => -130 + Math.max(0, Math.min(1, (f - S.lo) / (S.hi - S.lo))) * 260;
+
+function buildDial() {
+  const fps = S.rates.map(r => r.fps);
+  let lo = fps.length ? Math.min(...fps) : 60;
+  let hi = fps.length ? Math.max(...fps) : 180;
+  lo = Math.floor(lo / 10) * 10;
+  hi = Math.ceil(hi / 10) * 10;
+  if (hi - lo < 60) lo = Math.max(0, hi - 60);
+  S.lo = lo;
+  S.hi = hi;
+  const bases = S.rates.filter(r => r.type === 'native' && r.base).map(r => r.fps);
+  S.baseFps = bases.length ? Math.max(...bases) : 120;
+  const hasOc = S.rates.some(r => r.type === 'overclock');
+  const step = hi - lo <= 140 ? 2 : 5;
+  let h = '';
+  for (let f = lo; f <= hi; f += step) {
+    const mj = f % 30 === 0, md = f % 10 === 0;
+    const hot = hasOc && f > S.baseFps;
+    h += `<i data-f="${f}" class="tk${mj ? ' mj' : md ? ' md' : ''}${hot ? ' hot' : ''}" style="transform:rotate(${ang(f)}deg)"></i>`;
+    if (mj) h += `<span class="lb${hot ? ' hot' : ''}" style="transform:rotate(${ang(f)}deg) translate3d(0,-104px,0) rotate(${-ang(f)}deg)">${f}</span>`;
+  }
+  $('#ticks').innerHTML = h;
+  const zone = $('#zone');
+  zone.style.display = hasOc && hi > S.baseFps ? '' : 'none';
+  zone.style.setProperty('--z0', `${ang(S.baseFps)}deg`);
+  zone.style.setProperty('--z1', `${ang(hi) - ang(S.baseFps)}deg`);
+}
+
+function initRoll() {
+  $('#roll').innerHTML = [0, 1, 2].map(() => `<span class="col"><span class="strip">${[...'0123456789'].map(d => `<b>${d}</b>`).join('')}</span></span>`).join('');
+}
+
+function setNum(n) {
+  const ds = String(Math.max(0, Math.min(999, n))).padStart(3, '0').split('');
+  $$('#roll .col').forEach((c, i) => {
+    c.classList.toggle('lead0', i === 0 && ds[0] === '0');
+    c.firstChild.style.transform = `translate3d(0, ${-ds[i] * 10}%, 0)`;
+  });
+}
+
+function setGauge(f, oc) {
+  $('#rotor').style.transform = `rotate(${ang(f)}deg)`;
+  $$('.tk').forEach(t => t.classList.toggle('lit', +t.dataset.f <= f));
+  $('#ft').textContent = f > 0 ? (1000 / f).toFixed(2) : '--';
+  $('#pr').textContent = f > 0 ? `${f} 次 / 秒` : '--';
+  const train = $('#train');
+  const sp = 1500 / Math.max(f, 1);
+  train.style.setProperty('--sp', `${sp}px`);
+  train.style.animationDuration = `${sp * 8 / (S.animating ? 200 : 60)}s`;
+  train.classList.toggle('oc', !!oc);
+  $('#dial').classList.toggle('oc', !!oc);
+}
+
+function replay(el, c) {
+  el.classList.remove(c);
+  void el.offsetWidth;
+  el.classList.add(c);
+}
+
+async function animateTo(t) {
+  if (!t || S.animating) return;
+  const c = byId(S.dispId);
+  const steps = seq(c, t);
+  const dial = $('#dial');
+  if (!steps.length) {
+    S.dispId = t.id;
+    setNum(t.fps);
+    setGauge(t.fps, t.type === 'overclock');
+    return;
+  }
+  S.animating = true;
+  document.body.classList.add('busy');
+  const rp = $('#rp');
+  rp.innerHTML = (c ? `<span class="done num">${c.fps}</span>` : '') + steps.map(r => `<i></i><span class="${r.type === 'overclock' ? 'oc' : ''}">${r.fps}</span>`).join('');
+  const spans = rp.querySelectorAll('span');
+  const off = c ? 1 : 0;
+  for (const [i, r] of steps.entries()) {
+    await sleep(i ? 260 : 60);
+    if (i + off - 1 >= 0) spans[i + off - 1].classList.replace('now', 'done') || spans[i + off - 1].classList.add('done');
+    spans[i + off].classList.add('now');
+    const oc = r.type === 'overclock';
+    if (oc && !dial.classList.contains('oc')) replay($('#flash'), 'go');
+    setNum(r.fps);
+    setGauge(r.fps, oc);
+    replay(dial, 'tick');
+  }
+  await sleep(320);
+  spans[spans.length - 1].classList.replace('now', 'done');
+  replay(dial, 'wv');
+  S.dispId = t.id;
+  S.animating = false;
+  document.body.classList.remove('busy');
+  setGauge(t.fps, t.type === 'overclock');
+}
+
+function groups(list, desc) {
+  const m = new Map();
+  list.forEach(r => {
+    const k = resOf(r);
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(r);
+  });
+  m.forEach(v => v.sort((a, b) => desc ? b.fps - a.fps : a.fps - b.fps));
+  return [...m.entries()];
+}
+
+function keyHtml(r, on, cur) {
+  const oc = r.type === 'overclock';
+  const t = oc ? `超频 ${r.ord} 级` : r.base ? '原生基准' : '原生';
+  return `<button class="key${oc ? ' oc' : ''}${on ? ' on' : ''}${cur ? ' cur' : ''}" data-id="${r.id}"><i class="led"></i><span class="f num">${r.fps}</span><span class="t">${t}</span></button>`;
+}
+
+function renderKeys() {
+  const el = $('#keys');
+  const keep = S.ltpo === 'keep';
+  $('#keys-hint').textContent = keep ? '保留 LTPO 模式下不生效' : '按下即生效';
+  if (!S.rates.length) {
+    el.innerHTML = '<div class="panel"><div class="empty">尚未读取到档位，请在「档位」页重新扫描</div></div>';
+    return;
+  }
+  const gs = groups(S.rates, false);
+  el.innerHTML = gs.map(([k, rs]) => `${gs.length > 1 ? `<div class="res">${esc(resText(k))}</div>` : ''}<div class="keys${keep ? ' off' : ''}">${rs.map(r => keyHtml(r, r.id === S.conf.rateId, r.id === S.state.cur)).join('')}</div>`).join('');
+}
+
+function renderStatus() {
+  const st = S.state;
+  const box = $('#status');
+  let cls = 'idle', txt = '系统控制';
+  if (!st.has) { cls = ''; txt = '等待后台服务'; }
+  else if (st.error) { cls = 'err'; txt = '切换失败'; }
+  else if (st.target != null && st.target !== st.cur) { cls = 'run'; txt = '切换中'; }
+  else if (st.cur != null) { cls = 'ok'; txt = '已锁定'; }
+  box.className = `status ${cls}`;
+  $('#status-text').textContent = txt;
+  const rule = S.conf.appSw ? ruleFor(st.app) : null;
+  $('#st-src').textContent = st.target == null ? '系统控制' : rule && rule.id === st.target ? '应用规则' : '全局档位';
+  $('#st-app').textContent = st.app ? appLabel(st.app) : '—';
+  const cur = byId(st.cur);
+  $('#st-res').textContent = cur ? resText(resOf(cur)) : '—';
+  $('#st-ltpo').textContent = ltpoText();
+  $$('#keys .key').forEach(k => k.classList.toggle('cur', +k.dataset.id === st.cur));
+}
+
+function syncDial() {
+  if (S.animating) return;
+  const r = byId(S.state.cur);
+  if (r && r.id !== S.dispId) animateTo(r);
+}
+
+async function pollState() {
+  if (document.hidden || S.animating) return;
+  S.state = parseState(await readFile(`${DATA}/state.conf`));
+  renderStatus();
+  syncDial();
+}
+
+async function pickGlobal(id) {
+  if (S.ltpo === 'keep' || S.animating) return;
+  const t = byId(id);
+  if (!t) return;
+  if (S.conf.rateId === id) { toast(`${t.fps} Hz 已是全局档位`); return; }
+  const prev = S.conf.rateId;
+  S.conf.rateId = id;
+  renderKeys();
+  if (!(await saveSettings())) {
+    S.conf.rateId = prev;
+    renderKeys();
+    return;
+  }
+  const rule = S.conf.appSw ? ruleFor(S.state.app) : null;
+  if (rule) {
+    toast('当前应用有专属档位，全局档位将在离开该应用后生效');
+    return;
+  }
+  toast(`全局档位已设为 ${t.fps} Hz`);
+  animateTo(t);
+}
+
+function rateTag(r) {
+  if (r.type === 'overclock') return '超频';
+  return r.base ? '原生基准' : '原生';
+}
+
+function renderLadders() {
+  const el = $('#ladders');
+  if (!S.rates.length) {
+    el.innerHTML = '<div class="panel"><div class="empty">没有档位数据，请点击下方「重新扫描」</div></div>';
+  } else {
+    el.innerHTML = groups(S.rates, true).map(([k, rs]) => `<h2 class="sec">${esc(resText(k))}<small>${rs.length} 个档位</small></h2><div class="panel">${rs.map(r => {
+      const oc = r.type === 'overclock';
+      return `<div class="row step${oc ? ' oc' : ' native'}${r.base && !oc ? ' base' : ''}" data-id="${r.id}">
+        <span class="node"></span><b class="num f">${r.fps}</b>
+        <button class="tag" data-act="base">${rateTag(r)}</button>
+        ${oc ? `<div class="stepper"><button data-act="ord" data-d="-1">−</button><b class="num">${r.ord || '-'}</b><button data-act="ord" data-d="1">+</button></div>` : ''}
+        <div class="seg mini"><b data-act="type" data-v="native" class="${oc ? '' : 'on'}">原生</b><b data-act="type" data-v="overclock" class="${oc ? 'on' : ''}">超频</b></div>
+      </div>`;
+    }).join('')}</div>`).join('');
+  }
+  $('#save-rates').disabled = !S.dirty;
+  $('#save-rates').textContent = S.dirty ? '保存档位配置' : '档位配置已保存';
+}
+
+function onLadder(e) {
+  const a = e.target.closest('[data-act]');
+  const row = e.target.closest('.step');
+  if (!a || !row) return;
+  const r = byId(+row.dataset.id);
+  if (!r) return;
+  const k = resOf(r);
+  const act = a.dataset.act;
+  if (act === 'type') {
+    const v = a.dataset.v;
+    if (v === r.type) return;
+    r.type = v;
+    if (v === 'overclock') {
+      r.base = false;
+      r.ord = Math.max(0, ...S.rates.filter(x => resOf(x) === k && x.type === 'overclock' && x !== r).map(x => x.ord)) + 1;
+    } else r.ord = 0;
+  } else if (act === 'base') {
+    if (r.type !== 'native' || r.base) return;
+    S.rates.forEach(x => { if (resOf(x) === k) x.base = false; });
+    r.base = true;
+  } else if (act === 'ord') {
+    r.ord = Math.max(1, (r.ord || 0) + +a.dataset.d);
+  }
+  S.dirty = true;
+  renderLadders();
+}
+
+async function saveRates() {
+  const ocRes = [...new Set(S.rates.filter(r => r.type === 'overclock').map(resOf))];
+  const miss = ocRes.filter(k => !S.rates.some(r => resOf(r) === k && r.type === 'native' && r.base));
+  if (miss.length) { toast(`请为 ${miss.map(resText).join('、')} 设置原生基准`); return; }
+  const dup = S.rates.some(r => r.type === 'overclock' && S.rates.some(x => x !== r && x.type === 'overclock' && resOf(x) === resOf(r) && x.ord === r.ord));
+  if (dup) { toast('同一分辨率下超频档位的顺序不能重复'); return; }
+  const lines = S.rates.map(r => `${r.id}:${r.w}:${r.h}:${r.fps}:${r.type}:${r.base ? 1 : 0}:${r.type === 'overclock' ? r.ord : 0}`);
+  if (!(await writeFile(`${DATA}/rates.conf`, `${lines.join('\n')}\n`)) || !(await bump())) return;
+  S.dirty = false;
+  renderAllRates();
+  toast('档位配置已保存');
+}
+
+async function rescan() {
+  if (!(await confirmSheet('重新扫描档位', '将重新读取系统支持的全部档位，并按 120Hz 原生基准自动标注。当前的标注会被替换，确认后请检查并保存。', '扫描'))) return;
+  toast('正在扫描…');
+  const r = await exec(`sh ${q(`${MOD}/astra.sh`)} scan`, 20000);
+  const list = parseRates(r.stdout);
+  if (!list.length) { toast('扫描失败：没有读取到档位'); return; }
+  S.rates = list;
+  S.dirty = true;
+  renderAllRates();
+  toast(`扫描完成，共 ${list.length} 个档位，请确认后保存`);
+}
+
+function renderAllRates() {
+  buildDial();
+  renderKeys();
+  renderLadders();
+  renderRules();
+  renderStatus();
+  const r = byId(S.dispId);
+  if (r) {
+    setNum(r.fps);
+    setGauge(r.fps, r.type === 'overclock');
+  }
+}
+
+function iconHtml(pkg) {
+  const label = appLabel(pkg);
+  return `<span class="icon">${esc([...label][0] || '?')}<img src="icons/${encodeURIComponent(pkg)}.png?v=${S.iconV}" alt=""></span>`;
+}
+
+function renderRules() {
+  $('#app-sw').checked = S.conf.appSw;
+  $('#app-iv').textContent = `${S.conf.appIntv} 秒`;
+  $('#rule-count').textContent = S.rules.length ? `${S.rules.length} 条` : '';
+  const el = $('#rules');
+  if (!S.rules.length) {
+    el.innerHTML = '<div class="empty">还没有规则，点击下方「添加规则」为应用指定档位</div>';
+    return;
+  }
+  el.innerHTML = S.rules.map(x => {
+    const r = byId(x.id);
+    const oc = r && r.type === 'overclock';
+    return `<button class="row app" data-pkg="${esc(x.pkg)}">${iconHtml(x.pkg)}<span class="nm"><b>${esc(appLabel(x.pkg))}</b><small>${esc(x.pkg)}</small></span><b class="num hz${oc ? ' oc' : ''}">${r ? r.fps : `ID ${x.id}`}</b></button>`;
+  }).join('');
+}
+
+function loadApps() {
+  if (S.appsLoading) return S.appsLoading;
+  S.appsLoading = (async () => {
+    const r = await exec(`sh ${q(`${MOD}/astra.sh`)} apps`, 90000);
+    const m = new Map();
+    r.stdout.split('\n').forEach(l => {
+      const [pkg, label, sys] = l.split('\t');
+      if (pkg && /^[\w.]+$/.test(pkg)) m.set(pkg, { label: label || pkg, sys: sys === '1' });
+    });
+    if (m.size) {
+      S.apps = m;
+      S.iconV = Date.now();
+      renderRules();
+      renderStatus();
+    }
+    S.appsLoading = null;
+    return S.apps;
+  })();
+  return S.appsLoading;
+}
+
+function rateKeysHtml(sel) {
+  const gs = groups(S.rates, false);
+  return gs.map(([k, rs]) => `${gs.length > 1 ? `<div class="res">${esc(resText(k))}</div>` : ''}<div class="keys">${rs.map(r => keyHtml(r, r.id === sel, false)).join('')}</div>`).join('');
+}
+
+function editRule(pkg) {
+  const rule = ruleFor(pkg);
+  openSheet(`<h3>${esc(appLabel(pkg))}</h3><p class="msg">${esc(pkg)}</p>${rateKeysHtml(rule?.id)}<div class="acts"><button class="btn danger" data-act="del">删除规则</button><button class="btn solid" data-act="close">完成</button></div>`, async e => {
+    const k = e.target.closest('.key');
+    const a = e.target.closest('[data-act]');
+    if (k) {
+      const id = +k.dataset.id;
+      const x = ruleFor(pkg);
+      if (x) x.id = id; else S.rules.push({ pkg, id });
+      $$('#sheet .key').forEach(b => b.classList.toggle('on', b === k));
+      if (await saveRules()) { renderRules(); toast(`${appLabel(pkg)} 已设为 ${byId(id)?.fps ?? id} Hz`); }
+    } else if (a?.dataset.act === 'del') {
+      S.rules = S.rules.filter(x => x.pkg !== pkg);
+      if (await saveRules()) { renderRules(); toast('规则已删除'); }
+      closeSheet();
+    } else if (a?.dataset.act === 'close') closeSheet();
+  });
+}
+
+async function addRule() {
+  if (!S.rates.length) { toast('请先在「档位」页扫描档位'); return; }
+  let filter = '';
+  const draw = () => {
+    const box = $('#pick-list');
+    if (!box) return;
+    if (!S.apps) { box.innerHTML = '<div class="empty">正在读取应用列表…<br>首次读取需要几秒钟</div>'; return; }
+    const f = filter.toLowerCase();
+    const list = [...S.apps.entries()].filter(([p, v]) => !f || p.toLowerCase().includes(f) || v.label.toLowerCase().includes(f))
+      .sort((a, b) => (a[1].sys - b[1].sys) || a[1].label.localeCompare(b[1].label, 'zh'))
+      .slice(0, 150);
+    box.innerHTML = list.length ? list.map(([p, v]) => `<button class="row app" data-pkg="${esc(p)}">${iconHtml(p)}<span class="nm"><b>${esc(v.label)}</b><small>${esc(p)}</small></span>${ruleFor(p) ? `<b class="num hz">${byId(ruleFor(p).id)?.fps ?? ''}</b>` : ''}</button>`).join('') : '<div class="empty">没有找到匹配的应用</div>';
+  };
+  openSheet(`<h3>选择应用</h3><label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><input id="pick-q" placeholder="搜索应用名称或包名" autocomplete="off"></label><div class="pick-list" id="pick-list"></div>`, e => {
+    const b = e.target.closest('.app');
+    if (b) editRule(b.dataset.pkg);
+  });
+  $('#pick-q').addEventListener('input', e => { filter = e.target.value.trim(); draw(); });
+  draw();
+  if (!S.apps) {
+    await loadApps();
+    if (!S.apps) { const box = $('#pick-list'); if (box) box.innerHTML = '<div class="empty">读取应用列表失败</div>'; return; }
+    draw();
+  }
+}
+
+let ivTimer;
+function stepInterval(d) {
+  S.conf.appIntv = Math.max(1, Math.min(10, S.conf.appIntv + d));
+  $('#app-iv').textContent = `${S.conf.appIntv} 秒`;
+  clearTimeout(ivTimer);
+  ivTimer = setTimeout(saveSettings, 500);
+}
+
+async function loadRecent() {
+  const t = await readFile(`${DATA}/run.log`);
+  const hits = t.split('\n').map(l => l.match(/^(\S+ \S+) 已切换到档位 (\d+)/)).filter(Boolean).slice(-5).reverse();
+  $('#recent').innerHTML = hits.length ? hits.map(m => {
+    const r = byId(+m[2]);
+    return `<li class="row"><span class="num ts">${esc(m[1])}</span><span class="num tr${r && r.type === 'overclock' ? ' oc' : ''}">${r ? `${r.fps} Hz` : `档位 ${esc(m[2])}`}</span></li>`;
+  }).join('') : '<li class="empty">暂无记录</li>';
+  return t;
+}
+
+async function openLog() {
+  const t = await readFile(`${DATA}/run.log`);
+  const lines = t.trim().split('\n').slice(-200).reverse().join('\n');
+  openSheet(`<h3>运行记录</h3><div class="logbox">${esc(lines || '暂无记录')}</div><div class="acts"><button class="btn solid" data-act="close">关闭</button></div>`, e => {
+    if (e.target.closest('[data-act="close"]')) closeSheet();
+  });
+}
+
+async function resetAll() {
+  if (!(await confirmSheet('清除全部配置', '将删除全局档位、档位标注和全部应用规则。后台服务会重新扫描并自动标注档位，此操作无法撤销。', '清除', true))) return;
+  const r = await exec(`sh ${q(`${MOD}/astra.sh`)} reset`);
+  if (r.errno !== 0) { toast('清除失败'); return; }
+  toast('已清除，正在重新读取…');
+  await sleep(3000);
+  await loadAll();
+  renderAllRates();
+  loadRecent();
+}
+
+let sheetHandler = null;
+function openSheet(html, handler) {
+  $('#sheet-body').innerHTML = html;
+  sheetHandler = handler;
+  $('#scrim').classList.add('on');
+  $('#sheet').classList.add('on');
+}
+
+function closeSheet() {
+  $('#scrim').classList.remove('on');
+  $('#sheet').classList.remove('on');
+  const done = sheetHandler?.onClose;
+  sheetHandler = null;
+  if (done) done();
+}
+
+function confirmSheet(title, msg, ok, danger) {
+  return new Promise(resolve => {
+    const h = e => {
+      const a = e.target.closest('[data-act]');
+      if (!a) return;
+      h.onClose = null;
+      closeSheet();
+      resolve(a.dataset.act === 'ok');
+    };
+    h.onClose = () => resolve(false);
+    openSheet(`<h3>${esc(title)}</h3><p class="msg">${esc(msg)}</p><div class="acts"><button class="btn" data-act="no">取消</button><button class="btn ${danger ? 'danger' : 'solid'}" data-act="ok">${esc(ok)}</button></div>`, h);
+  });
+}
+
+let toastTimer;
+function toast(m) {
+  const t = $('#toast');
+  t.textContent = m;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } },
+};
+const media = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+
+function applyTheme(m) {
+  m = ['auto', 'light', 'dark'].includes(m) ? m : 'auto';
+  store.set('astra-theme', m);
+  document.documentElement.dataset.theme = m === 'auto' ? (media && !media.matches ? 'light' : 'dark') : m;
+  $$('#seg-theme b').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+}
+
+function applyMotion(m) {
+  m = ['full', 'lite', 'off'].includes(m) ? m : 'full';
+  store.set('astra-motion', m);
+  document.documentElement.dataset.motion = m;
+  $$('#seg-motion b').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+}
+
+let page = 'home';
+function go(p) {
+  if (p === page) return;
+  page = p;
+  const tabs = $$('.tab');
+  const i = tabs.findIndex(t => t.dataset.go === p);
+  tabs.forEach(t => t.classList.toggle('on', t.dataset.go === p));
+  $('#tab-ind').style.transform = `translate3d(${i * 100}%, 0, 0)`;
+  $$('.page').forEach(s => s.classList.toggle('on', s.dataset.page === p));
+  $$('.dock').forEach(d => d.classList.toggle('on', d.dataset.for === p));
+  if (p === 'set') loadRecent();
+}
+
+function bind() {
+  $$('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.go)));
+  $('#keys').addEventListener('click', e => { const k = e.target.closest('.key'); if (k) pickGlobal(+k.dataset.id); });
+  $('#ladders').addEventListener('click', onLadder);
+  $('#save-rates').addEventListener('click', saveRates);
+  $('#rescan').addEventListener('click', rescan);
+  $('#app-sw').addEventListener('change', e => { S.conf.appSw = e.target.checked; saveSettings(); renderStatus(); });
+  $$('[data-step]').forEach(b => b.addEventListener('click', () => stepInterval(+b.dataset.step)));
+  $('#rules').addEventListener('click', e => { const b = e.target.closest('.app'); if (b) editRule(b.dataset.pkg); });
+  $('#add-rule').addEventListener('click', addRule);
+  $('#seg-theme').addEventListener('click', e => { const b = e.target.closest('b'); if (b) applyTheme(b.dataset.v); });
+  $('#seg-motion').addEventListener('click', e => { const b = e.target.closest('b'); if (b) applyMotion(b.dataset.v); });
+  $('#open-log').addEventListener('click', openLog);
+  $('#reset-all').addEventListener('click', resetAll);
+  $('#scrim').addEventListener('click', closeSheet);
+  $('#sheet').addEventListener('click', e => sheetHandler && sheetHandler(e));
+  if (media) {
+    const f = () => { if ((store.get('astra-theme') || 'auto') === 'auto') applyTheme('auto'); };
+    media.addEventListener ? media.addEventListener('change', f) : media.addListener(f);
+  }
+  document.addEventListener('load', e => { if (e.target.tagName === 'IMG') e.target.classList.add('ok'); }, true);
+  document.addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.remove(); }, true);
+  const sel = '.btn, .key, .row.link, .row.app, .tab, .stepper button';
+  document.addEventListener('pointerdown', e => { const t = e.target.closest(sel); if (t) t.classList.add('press'); });
+  const clear = () => $$('.press').forEach(x => x.classList.remove('press'));
+  ['pointerup', 'pointercancel', 'scroll'].forEach(v => document.addEventListener(v, clear, true));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pollState(); });
+}
+
+async function init() {
+  applyTheme(store.get('astra-theme'));
+  applyMotion(store.get('astra-motion'));
+  loadModuleInfo();
+  initRoll();
+  bind();
+  await loadAll();
+  buildDial();
+  renderKeys();
+  renderLadders();
+  renderRules();
+  renderStatus();
+  $('#set-ltpo').textContent = ltpoText();
+  $('#foot').textContent = `Astra MaxRefresh Pro${S.ver ? ` · ${S.ver}` : ''} · 穆远星`;
+  setNum(0);
+  setGauge(S.lo, false);
+  requestAnimationFrame(() => document.body.classList.add('ready'));
+  await sleep(650);
+  const r = byId(S.state.cur) || byId(S.conf.rateId);
+  if (r) {
+    S.dispId = r.id;
+    setNum(r.fps);
+    setGauge(r.fps, r.type === 'overclock');
+    if (r.type === 'overclock') replay($('#flash'), 'go');
+    await sleep(500);
+    replay($('#dial'), 'wv');
+  }
+  setInterval(pollState, 1500);
+  loadApps();
+  loadRecent();
+}
+
+document.addEventListener('DOMContentLoaded', init);
