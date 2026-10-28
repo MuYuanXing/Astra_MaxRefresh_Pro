@@ -317,7 +317,12 @@ function renderKeys() {
 
 function renderResSeg() {
   const ks = [...new Set(S.rates.map(resOf))];
-  $('#res-row').style.display = ks.length > 1 ? '' : 'none';
+  const show = ks.length > 1;
+  const panel = $('#res-row');
+  const sec = $('#res-sec');
+  if (panel) panel.style.display = show ? '' : 'none';
+  if (sec) sec.style.display = show ? '' : 'none';
+  if (!show) return;
   const cur = homeRes();
   $('#seg-res').innerHTML = ks.map(k => `<b data-v="${esc(k)}" class="${k === cur ? 'on' : ''}">${esc(resText(k))}</b>`).join('');
 }
@@ -473,7 +478,7 @@ function renderAllRates() {
 
 function iconHtml(pkg) {
   const label = appLabel(pkg);
-  return `<span class="icon">${esc([...label][0] || '?')}${S.iconMode === 'ksu' ? `<img src="ksu://icon/${esc(pkg)}" alt="">` : ''}</span>`;
+  return `<span class="icon">${esc([...label][0] || '?')}${S.iconMode === 'ksu' ? `<img src="ksu://icon/${esc(pkg)}" alt="" loading="lazy" decoding="async">` : ''}</span>`;
 }
 
 function renderRules() {
@@ -548,29 +553,58 @@ function editRule(pkg) {
   });
 }
 
+const PICK_MAX = 150;
+let pickTimer;
+
+function pickRowHtml(p, v) {
+  const r = ruleFor(p);
+  const x = r ? byId(r.id) : null;
+  const hz = x ? `<b class="num hz${x.type === 'overclock' ? ' oc' : ''}">${x.fps}</b>` : '';
+  return `<button class="row app" data-pkg="${esc(p)}" data-q="${esc(`${v.label} ${p}`.toLowerCase())}">${iconHtml(p)}<span class="nm"><b>${esc(v.label)}</b><small>${esc(p)}</small></span>${hz}</button>`;
+}
+
+function pickFilter(q) {
+  const f = q.toLowerCase();
+  const list = $('#pick-list');
+  if (!list) return;
+  let n = 0;
+  $$('#pick-list .app').forEach(b => {
+    const hit = !f || b.dataset.q.includes(f);
+    if (hit) n++;
+    b.hidden = !hit || n > PICK_MAX;
+  });
+  const none = $('#pick-none');
+  if (none) none.hidden = n > 0;
+  list.scrollTop = 0;
+}
+
 async function addRule() {
   if (!S.rates.length) { toast('请先在「档位」页扫描档位'); return; }
-  let filter = '';
-  const draw = () => {
+  clearTimeout(pickTimer);
+  const build = () => {
     const box = $('#pick-list');
     if (!box) return;
     if (!S.apps) { box.innerHTML = '<div class="empty">正在读取应用列表…<br>首次读取需要几秒钟</div>'; return; }
-    const f = filter.toLowerCase();
-    const list = [...S.apps.entries()].filter(([p, v]) => !f || p.toLowerCase().includes(f) || v.label.toLowerCase().includes(f))
+    box.innerHTML = [...S.apps.entries()]
       .sort((a, b) => (GAMES.includes(b[0]) - GAMES.includes(a[0])) || (a[1].sys - b[1].sys) || a[1].label.localeCompare(b[1].label, 'zh'))
-      .slice(0, 150);
-    box.innerHTML = list.length ? list.map(([p, v]) => `<button class="row app" data-pkg="${esc(p)}">${iconHtml(p)}<span class="nm"><b>${esc(v.label)}</b><small>${esc(p)}</small></span>${ruleFor(p) ? `<b class="num hz">${byId(ruleFor(p).id)?.fps ?? ''}</b>` : ''}</button>`).join('') : '<div class="empty">没有找到匹配的应用</div>';
+      .map(([pk, v]) => pickRowHtml(pk, v)).join('') + '<div class="empty" id="pick-none" hidden>没有找到匹配的应用</div>';
+    pickFilter($('#pick-q')?.value.trim() || '');
   };
   openSheet(`<h3>选择应用</h3><label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><input id="pick-q" placeholder="搜索应用名称或包名" autocomplete="off"></label><div class="pick-list" id="pick-list"></div>`, e => {
     const b = e.target.closest('.app');
     if (b) editRule(b.dataset.pkg);
+  }, 'pick');
+  $('#pick-q').addEventListener('input', e => {
+    const v = e.target.value.trim();
+    clearTimeout(pickTimer);
+    pickTimer = setTimeout(() => pickFilter(v), 60);
   });
-  $('#pick-q').addEventListener('input', e => { filter = e.target.value.trim(); draw(); });
-  draw();
+  build();
   if (!S.apps) {
     await loadApps();
-    if (!S.apps) { const box = $('#pick-list'); if (box) box.innerHTML = '<div class="empty">读取应用列表失败</div>'; return; }
-    draw();
+    if (!$('#pick-list')) return;
+    if (!S.apps) { $('#pick-list').innerHTML = '<div class="empty">读取应用列表失败</div>'; return; }
+    build();
   }
 }
 
@@ -621,9 +655,10 @@ async function resetAll() {
 }
 
 let sheetHandler = null;
-function openSheet(html, handler) {
+function openSheet(html, handler, kind) {
   $('#sheet-body').innerHTML = html;
   sheetHandler = handler;
+  $('#sheet').classList.toggle('pick', kind === 'pick');
   $('#scrim').classList.add('on');
   $('#sheet').classList.add('on');
 }
@@ -631,6 +666,7 @@ function openSheet(html, handler) {
 function closeSheet() {
   $('#scrim').classList.remove('on');
   $('#sheet').classList.remove('on');
+  $('#sheet').classList.remove('pick');
   const done = sheetHandler?.onClose;
   sheetHandler = null;
   if (done) done();
